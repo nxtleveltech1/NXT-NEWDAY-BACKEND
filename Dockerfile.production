@@ -1,0 +1,36 @@
+# Multi-stage build for production optimization
+FROM node:20-alpine AS base
+
+# Install dependencies for building
+RUN apk add --no-cache libc6-compat curl
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy source code
+COPY . .
+
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nodejs
+
+# Set ownership
+RUN chown -R nodejs:nodejs /app
+USER nodejs
+
+# Expose port
+EXPOSE 4000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:4000/health || exit 1
+
+# Production optimizations
+ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+
+# Start the application
+CMD ["node", "index.js"]
