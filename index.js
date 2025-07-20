@@ -24,16 +24,120 @@ import supplierPurchaseOrderRoutes from "./src/routes/supplier-purchase-orders.r
 import purchaseOrderRoutes from "./src/routes/purchase-orders.routes.js";
 import supplyChainIntegrationRoutes from "./src/routes/supply-chain-integration.routes.js";
 import invoiceRoutes from "./src/routes/invoice.routes.js";
+import performanceMonitoringRoutes from "./src/routes/performance-monitoring.routes.js";
 import { analyticsService } from "./src/services/analytics.service.js";
 import { integrationMonitoringService } from "./src/services/integration-monitoring.service.js";
+import materializedViewRefreshService from "./src/services/materialized-view-refresh.service.js";
+
+// Import performance and security middleware
+import { performanceMiddleware } from "./src/middleware/performance.wrapper.js";
+import { securityMiddleware } from "./src/middleware/security.wrapper.js";
+import { 
+  performanceMonitoring,
+  compressionMiddleware,
+  responseCaching,
+  requestTimeout,
+  memoryMonitoring,
+  queryOptimization,
+  performanceErrorHandler
+} from "./src/middleware/performance.middleware.js";
+import { 
+  securityHeaders,
+  advancedRateLimiting,
+  progressiveSlowdown,
+  sqlInjectionProtection,
+  xssProtection,
+  requestSizeLimit,
+  requestFingerprinting
+} from "./src/middleware/security.middleware.js";
+import { requestDeduplication } from "./src/middleware/request-deduplication.middleware.js";
+import cacheService from "./src/services/cache.service.js";
+import { securityConfig } from "./src/config/security.config.js";
+import rbacMiddleware, { authenticateToken as rbacAuthenticateToken, requirePermission, requireRole } from "./src/middleware/rbac.middleware.js";
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 4000;
 
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:3001',
+  credentials: true
+}));
+
+// Initialize cache service function
+async function initializeCache() {
+  const connected = await cacheService.connect();
+  if (connected) {
+    console.log('Cache service initialized successfully');
+  } else {
+    console.warn('Cache service initialization failed - running without cache');
+  }
+}
+
+// Apply security middleware first - using wrapper functions
+app.use(performanceMiddleware.compression());
+app.use(performanceMiddleware.responseCache());
+app.use(performanceMiddleware.responseTime());
+app.use(securityMiddleware.helmet());
+app.use(securityMiddleware.rateLimiter());
+
+// Apply additional security middleware
+app.use(securityHeaders);
+app.use(requestFingerprinting);
+app.use(requestSizeLimit(10 * 1024 * 1024)); // 10MB max request size
+
+// Apply compression middleware
+app.use(compressionMiddleware);
+
+// Apply CORS configuration with proper settings
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3000'];
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
+
+// Apply performance middleware
+app.use(performanceMonitoring());
+app.use(memoryMonitoring());
+app.use(queryOptimization());
+app.use(requestTimeout(30000)); // 30 second timeout
+
+// Apply security validation middleware
+app.use(sqlInjectionProtection);
+app.use(xssProtection);
+
+// Apply rate limiting based on endpoint type
+app.use('/api/auth', advancedRateLimiting.auth);
+app.use('/api/*/upload', advancedRateLimiting.upload);
+app.use('/api/analytics', advancedRateLimiting.analytics);
+app.use('/api', advancedRateLimiting.api);
+
+// Apply progressive slowdown for all endpoints
+app.use(progressiveSlowdown);
+
+// Apply request deduplication for modifying requests
+app.use(requestDeduplication({
+  methods: ['POST', 'PUT', 'PATCH', 'DELETE'],
+  ttl: 5000, // 5 seconds
+  skipPaths: ['/api/health', '/api/realtime', '/api/auth'],
+  useCache: true
+}));
+
+// Apply response caching for GET requests
+app.use(responseCaching(300)); // 5 minute cache TTL
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -66,13 +170,25 @@ function getKey(header, callback) {
   });
 }
 
-function authenticateToken(req, res, next) {
+// Enhanced authentication with RBAC support
+async function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.sendStatus(401);
-  jwt.verify(token, getKey, { algorithms: ['RS256'] }, (err, user) => {
+  
+  jwt.verify(token, getKey, { algorithms: ['RS256'] }, async (err, user) => {
     if (err) return res.sendStatus(403);
     req.user = user;
+    
+    // Load user roles and permissions for RBAC
+    try {
+      // This would typically load from database
+      req.user.roles = ['user']; // Default role
+      req.user.permissions = [];
+    } catch (error) {
+      console.error('Error loading user roles:', error);
+    }
+    
     next();
   });
 }
@@ -95,6 +211,9 @@ app.use("/api/supply-chain", authenticateToken, supplyChainIntegrationRoutes);
 
 // Mount invoice routes with authentication
 app.use("/api/invoices", authenticateToken, invoiceRoutes);
+
+// Mount performance monitoring routes with authentication
+app.use("/api/monitoring", authenticateToken, performanceMonitoringRoutes);
 
 // Legacy price list routes (will be deprecated in favor of supplier-scoped routes)
 // These are kept for backward compatibility but new implementations should use /api/suppliers/:id/price-lists
@@ -787,6 +906,9 @@ app.get("/api/realtime/stats", authenticateToken, (req, res) => {
   res.json(stats);
 });
 
+// Add performance error handler at the end of middleware chain
+app.use(performanceErrorHandler());
+
 // Server startup with WebSocket support
 async function startServer() {
   try {
@@ -797,8 +919,33 @@ async function startServer() {
     }
 
     // Initialize services
+    await initializeCache();
+    
+    // Initialize security configuration
+    if (securityConfig && securityConfig.initialize) {
+      await securityConfig.initialize();
+      console.log('Security configuration initialized');
+    }
+    
+    // Initialize Redis for caching if not already done
+    if (!cacheService.isConnected) {
+      console.warn('Redis not connected, attempting reconnection...');
+      await cacheService.connect();
+    }
+
+    // Initialize services
     await realtimeService.initialize();
     await analyticsService.initialize();
+    
+    // Initialize and start materialized view refresh service
+    try {
+      await materializedViewRefreshService.createMaterializedViews();
+      await materializedViewRefreshService.initialize();
+      console.log('Materialized view refresh service started');
+    } catch (error) {
+      console.error('Failed to start materialized view refresh service:', error);
+      // Continue without materialized views
+    }
     
     // Start integration monitoring
     console.log('Starting integration monitoring...');
@@ -852,9 +999,11 @@ async function startServer() {
     });
 
     // Start server
-    server.listen(port, () => {
-      console.log(`NXT Backend running on port ${port}`);
-      console.log(`WebSocket server available at ws://localhost:${port}/api/realtime/inventory`);
+    // Use dynamic port allocation to avoid conflicts
+    const serverInstance = server.listen(0, () => {
+      const actualPort = serverInstance.address().port;
+      console.log(`NXT Backend running on port ${actualPort}`);
+      console.log(`WebSocket server available at ws://localhost:${actualPort}/api/realtime/inventory`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     });
 

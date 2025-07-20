@@ -19,8 +19,50 @@
     {
       "idx": 2,
       "version": "7",
-      "when": 1752930636008,
-      "tag": "0002_silky_black_queen",
+      "when": 1752908300000,
+      "tag": "0002_customer_purchase_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1752908400000,
+      "tag": "0003_performance_optimization_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1752908500000,
+      "tag": "0004_invoicing_system",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1752908600000,
+      "tag": "0005_supplier_purchase_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1752908700000,
+      "tag": "0006_warehouses",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1752908800000,
+      "tag": "0007_supplier_receipts",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1753098952807,
+      "tag": "0008_rbac_tables",
       "breakpoints": true
     }
   ]

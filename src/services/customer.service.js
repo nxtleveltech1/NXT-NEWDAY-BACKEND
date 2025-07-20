@@ -40,6 +40,8 @@ import {
   getCustomerPurchaseFrequency
 } from '../db/purchase-order-queries.js';
 
+import cacheService from './cache.service.js';
+
 /**
  * Customer Service Layer
  * Handles business logic for customer operations
@@ -100,6 +102,19 @@ export class CustomerService {
    */
   static async getCustomerById(id) {
     try {
+      // Generate cache key
+      const cacheKey = cacheService.generateKey('customers', 'detail', id);
+      
+      // Try to get from cache first
+      const cached = await cacheService.get(cacheKey);
+      if (cached) {
+        return {
+          success: true,
+          data: cached,
+          fromCache: true
+        };
+      }
+
       const customer = await getCustomerById(id);
       if (!customer) {
         return {
@@ -108,6 +123,9 @@ export class CustomerService {
           message: 'Customer not found'
         };
       }
+
+      // Cache the result for 10 minutes
+      await cacheService.set(cacheKey, customer, 600);
 
       return {
         success: true,
@@ -162,6 +180,19 @@ export class CustomerService {
         sortOrder = 'desc'
       } = options;
 
+      // Generate cache key based on query parameters
+      const cacheKey = cacheService.generateKey('customers', 'list', JSON.stringify(options));
+      
+      // Try to get from cache first
+      const cached = await cacheService.get(cacheKey);
+      if (cached) {
+        return {
+          success: true,
+          data: cached,
+          fromCache: true
+        };
+      }
+
       let customers;
       let totalCount;
 
@@ -178,19 +209,24 @@ export class CustomerService {
 
       const totalPages = Math.ceil(totalCount / pageSize);
 
+      const result = {
+        customers,
+        pagination: {
+          page,
+          pageSize,
+          totalCount,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
+        }
+      };
+
+      // Cache the result for 5 minutes
+      await cacheService.set(cacheKey, result, 300);
+
       return {
         success: true,
-        data: {
-          customers,
-          pagination: {
-            page,
-            pageSize,
-            totalCount,
-            totalPages,
-            hasNext: page < totalPages,
-            hasPrev: page > 1
-          }
-        }
+        data: result
       };
     } catch (error) {
       return {

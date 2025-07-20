@@ -16,6 +16,20 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
+// ==================== USER MANAGEMENT ====================
+
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  fullName: varchar('full_name', { length: 255 }),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  emailIdx: index('user_email_idx').on(table.email),
+}));
+
 // ==================== CUSTOMER MANAGEMENT ====================
 
 // Customers table with comprehensive tracking
@@ -800,6 +814,54 @@ export const purchaseOrderReceiptItems = pgTable('purchase_order_receipt_items',
   productIdx: index('po_receipt_items_product_idx').on(table.productId),
   skuIdx: index('po_receipt_items_sku_idx').on(table.sku),
   warehouseIdx: index('po_receipt_items_warehouse_idx').on(table.warehouseId),
+}));
+
+// ==================== ROLE-BASED ACCESS CONTROL ====================
+
+// Permissions table
+export const permissions = pgTable('permissions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 100 }).unique().notNull(),
+  description: text('description'),
+  category: varchar('category', { length: 50 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  nameIdx: index('permission_name_idx').on(table.name),
+  categoryIdx: index('permission_category_idx').on(table.category),
+}));
+
+// Roles table
+export const roles = pgTable('roles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 50 }).unique().notNull(),
+  description: text('description'),
+  level: integer('level').notNull().default(0),
+  isSystemRole: boolean('is_system_role').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  nameIdx: index('role_name_idx').on(table.name),
+  levelIdx: index('role_level_idx').on(table.level),
+}));
+
+// RolePermissions junction table (many-to-many between roles and permissions)
+export const rolePermissions = pgTable('role_permissions', {
+  roleId: uuid('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
+  permissionId: uuid('permission_id').notNull().references(() => permissions.id, { onDelete: 'cascade' }),
+}, (table) => ({
+  compoundKey: primaryKey({ columns: [table.roleId, table.permissionId] })
+}));
+
+// UserRoles junction table (many-to-many between users and roles)
+export const userRoles = pgTable('user_roles', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  roleId: uuid('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
+  assignedAt: timestamp('assigned_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  compoundKey: primaryKey({ columns: [table.userId, table.roleId] }),
+  userIdx: index('user_roles_user_idx').on(table.userId),
+  roleIdx: index('user_roles_role_idx').on(table.roleId),
 }));
 
 // ==================== TIME SERIES DATA ====================

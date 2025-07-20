@@ -1,5 +1,5 @@
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 import slowDown from 'express-slow-down';
 import { body, param, query, validationResult } from 'express-validator';
 import crypto from 'crypto';
@@ -61,7 +61,7 @@ export const advancedRateLimiting = {
     standardHeaders: true,
     legacyHeaders: false,
     skipSuccessfulRequests: true,
-    keyGenerator: (req) => `auth:${req.ip}:${req.body?.email || 'unknown'}`,
+    keyGenerator: ipKeyGenerator,
   }),
 
   // File upload endpoints
@@ -75,7 +75,7 @@ export const advancedRateLimiting = {
     },
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => `upload:${req.ip}:${req.user?.sub || 'anonymous'}`,
+    keyGenerator: ipKeyGenerator,
   }),
 
   // General API endpoints
@@ -89,7 +89,7 @@ export const advancedRateLimiting = {
     },
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => `api:${req.ip}:${req.user?.sub || 'anonymous'}`,
+    keyGenerator: ipKeyGenerator,
   }),
 
   // Analytics endpoints (higher limit but with slowdown)
@@ -103,7 +103,7 @@ export const advancedRateLimiting = {
     },
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => `analytics:${req.ip}:${req.user?.sub || 'anonymous'}`,
+    keyGenerator: ipKeyGenerator,
   })
 };
 
@@ -113,9 +113,9 @@ export const advancedRateLimiting = {
 export const progressiveSlowdown = slowDown({
   windowMs: 15 * 60 * 1000, // 15 minutes
   delayAfter: 50, // Allow 50 requests per windowMs without delay
-  delayMs: 100, // Add 100ms delay per request after delayAfter
+  delayMs: () => 100, // Add 100ms delay per request after delayAfter
   maxDelayMs: 5000, // Maximum delay of 5 seconds
-  keyGenerator: (req) => `slowdown:${req.ip}:${req.user?.sub || 'anonymous'}`,
+  keyGenerator: ipKeyGenerator,
 });
 
 /**

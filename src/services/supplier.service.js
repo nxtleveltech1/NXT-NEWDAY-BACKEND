@@ -29,6 +29,7 @@ import {
   getPriceListStatistics
 } from '../db/price-list-queries.js'
 import { parsePriceListFile, validatePriceListFile, standardizePriceListData, validatePriceListData } from '../utils/file-parsers/index.js'
+import cacheService from './cache.service.js'
 
 /**
  * Comprehensive Supplier Service Layer
@@ -53,6 +54,20 @@ export async function getSuppliersService(params = {}) {
       includeStatistics = false,
       includePriceLists = false
     } = params
+
+    // Generate cache key based on query parameters
+    const cacheKey = cacheService.generateKey('suppliers', 'list', JSON.stringify(params))
+    
+    // Try to get from cache first
+    const cached = await cacheService.get(cacheKey)
+    if (cached) {
+      return {
+        success: true,
+        data: cached,
+        message: `Retrieved ${cached.suppliers.length} suppliers (cached)`,
+        fromCache: true
+      }
+    }
 
     // Get suppliers with pagination
     const result = await getSuppliers({
@@ -91,6 +106,9 @@ export async function getSuppliersService(params = {}) {
       }
     }
 
+    // Cache the result for 5 minutes
+    await cacheService.set(cacheKey, result, 300)
+
     return {
       success: true,
       data: result,
@@ -116,6 +134,20 @@ export async function getSupplierByIdService(id, options = {}) {
       includePerformance = false,
       includeReorderSuggestions = false
     } = options
+
+    // Generate cache key based on options
+    const cacheKey = cacheService.generateKey('suppliers', 'detail', id, JSON.stringify(options))
+    
+    // Try to get from cache first
+    const cached = await cacheService.get(cacheKey)
+    if (cached) {
+      return {
+        success: true,
+        data: cached,
+        message: 'Supplier retrieved successfully (cached)',
+        fromCache: true
+      }
+    }
 
     let supplier = await getSupplierById(id)
     
@@ -154,6 +186,9 @@ export async function getSupplierByIdService(id, options = {}) {
       const reorderSuggestions = await getSupplierReorderSuggestions(id)
       supplier.reorderSuggestions = reorderSuggestions
     }
+
+    // Cache the result for 10 minutes
+    await cacheService.set(cacheKey, supplier, 600)
 
     return {
       success: true,

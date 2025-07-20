@@ -1122,10 +1122,31 @@ async function logEvent(eventType, eventData) {
   }
 }
 
+/**
+ * Start monitoring system
+ * @param {Object} options - Monitoring options
+ */
+export async function startMonitoring(options = {}) {
+  console.log('Integration monitoring started');
+  
+  // Set up periodic health checks
+  const healthCheckInterval = options.healthCheckInterval || 300000; // 5 minutes
+  setInterval(async () => {
+    try {
+      await performSystemHealthCheck({ includeDetailedMetrics: false });
+    } catch (error) {
+      console.error('Scheduled health check failed:', error);
+    }
+  }, healthCheckInterval);
+  
+  return { success: true, message: 'Monitoring started successfully' };
+}
+
 export const integrationMonitoringService = {
   performSystemHealthCheck,
   performAutomatedRecovery,
-  collectPerformanceMetrics
+  collectPerformanceMetrics,
+  startMonitoring
 };
 
 export default {

@@ -16,9 +16,7 @@ class EncryptionService {
     this.tagLength = 16;
     this.keyLength = 32;
     this.iterations = 100000;
-    
-    // Initialize master key from environment
-    this.masterKey = this.deriveMasterKey();
+    this.masterKey = null;
     this.initialized = false;
   }
 
@@ -27,6 +25,9 @@ class EncryptionService {
    */
   async initialize() {
     try {
+      // Derive master key from environment variables
+      this.masterKey = this.deriveMasterKey();
+      
       // Verify encryption capabilities
       await this.testEncryption();
       this.initialized = true;
@@ -41,11 +42,22 @@ class EncryptionService {
    * Derive master key from environment variables
    */
   deriveMasterKey() {
-    const masterSecret = process.env.ENCRYPTION_MASTER_KEY || 'default-dev-key-change-in-production';
-    const salt = process.env.ENCRYPTION_SALT || 'default-salt-change-in-production';
+    const masterSecret = process.env.ENCRYPTION_MASTER_KEY;
+    const salt = process.env.ENCRYPTION_SALT;
     
-    if (process.env.NODE_ENV === 'production' && masterSecret === 'default-dev-key-change-in-production') {
-      throw new Error('ENCRYPTION_MASTER_KEY must be set in production');
+    if (!masterSecret || !salt) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('ENCRYPTION_MASTER_KEY and ENCRYPTION_SALT must be set in production');
+      }
+      
+      // Use safe defaults for development
+      return crypto.pbkdf2Sync(
+        'default-dev-key-change-in-production',
+        'default-salt-change-in-production',
+        this.iterations,
+        this.keyLength,
+        this.hashAlgorithm
+      );
     }
 
     return crypto.pbkdf2Sync(masterSecret, salt, this.iterations, this.keyLength, this.hashAlgorithm);
@@ -71,15 +83,17 @@ class EncryptionService {
    */
   async encrypt(data, additionalData = null) {
     try {
-      if (!this.initialized) {
-        throw new Error('Encryption service not initialized');
+      if (!this.masterKey) {
+        throw new Error('Master key not initialized');
       }
 
       const plaintext = typeof data === 'string' ? data : JSON.stringify(data);
       const iv = crypto.randomBytes(this.ivLength);
       
-      const cipher = crypto.createCipher(this.algorithm, this.masterKey);
-      cipher.setAAD(additionalData || Buffer.alloc(0));
+      const cipher = crypto.createCipheriv(this.algorithm, this.masterKey, iv);
+      if (additionalData) {
+        cipher.setAAD(Buffer.from(additionalData));
+      }
       
       let encrypted = cipher.update(plaintext, 'utf8', 'hex');
       encrypted += cipher.final('hex');
@@ -106,15 +120,19 @@ class EncryptionService {
    */
   async decrypt(encryptedData, additionalData = null) {
     try {
-      if (!this.initialized) {
-        throw new Error('Encryption service not initialized');
+      if (!this.masterKey) {
+        throw new Error('Master key not initialized');
       }
 
       const parsedData = JSON.parse(Buffer.from(encryptedData, 'base64').toString());
+      const iv = Buffer.from(parsedData.iv, 'hex');
+      const tag = Buffer.from(parsedData.tag, 'hex');
       
-      const decipher = crypto.createDecipher(parsedData.algorithm, this.masterKey);
-      decipher.setAuthTag(Buffer.from(parsedData.tag, 'hex'));
-      decipher.setAAD(additionalData || Buffer.alloc(0));
+      const decipher = crypto.createDecipheriv(parsedData.algorithm, this.masterKey, iv);
+      decipher.setAuthTag(tag);
+      if (additionalData) {
+        decipher.setAAD(Buffer.from(additionalData));
+      }
       
       let decrypted = decipher.update(parsedData.data, 'hex', 'utf8');
       decrypted += decipher.final('utf8');
