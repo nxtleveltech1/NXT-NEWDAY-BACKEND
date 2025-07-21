@@ -416,7 +416,47 @@ class RBACService {
 export const rbacService = new RBACService();
 
 /**
- * Authentication middleware with enhanced JWT verification
+ * JWT Key retrieval function for Stack Auth
+ */
+export const getKey = (function() {
+  // Check if Stack Auth is properly configured
+  const projectId = process.env.VITE_STACK_PROJECT_ID;
+  if (!projectId || projectId.trim() === '') {
+    console.error('❌ VITE_STACK_PROJECT_ID not configured');
+    return null;
+  }
+
+  // Stack Auth JWKS setup
+  const jwksUri = `https://api.stack-auth.com/api/v1/projects/${projectId}/.well-known/jwks.json`;
+  const client = jwksClient({
+    jwksUri,
+    requestHeaders: {}, // Optional headers
+    timeout: 30000, // 30 second timeout
+    cache: true, // Cache the keys
+    rateLimit: true,
+    jwksRequestsPerMinute: 10,
+    cacheMaxEntries: 5,
+    cacheMaxAge: 600000 // 10 minutes
+  });
+
+  return function getKey(header, callback) {
+    if (!header.kid) {
+      return callback(new Error('Token header missing key ID'));
+    }
+    
+    client.getSigningKey(header.kid, function (err, key) {
+      if (err) {
+        console.error('❌ Failed to get signing key:', err);
+        return callback(err);
+      }
+      const signingKey = key && key.getPublicKey();
+      callback(null, signingKey);
+    });
+  };
+})();
+
+/**
+ * Authentication middleware with enhanced JWT verification and fallback handling
  */
 export const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -431,24 +471,24 @@ export const authenticateToken = (req, res, next) => {
     });
   }
 
-  // Stack Auth JWKS setup
-  const projectId = process.env.VITE_STACK_PROJECT_ID;
-  const jwksUri = `https://api.stack-auth.com/api/v1/projects/${projectId}/.well-known/jwks.json`;
-  const client = jwksClient({ jwksUri });
-
-  function getKey(header, callback) {
-    client.getSigningKey(header.kid, function (err, key) {
-      const signingKey = key && key.getPublicKey();
-      callback(null, signingKey);
+  if (!getKey) {
+    return res.status(500).json({
+      success: false,
+      error: 'Authentication service not properly configured',
+      code: 'AUTH_CONFIG_ERROR',
+      details: 'Stack Auth Project ID not found in environment variables',
+      timestamp: new Date().toISOString()
     });
   }
 
   jwt.verify(token, getKey, { algorithms: ['RS256'] }, async (err, decoded) => {
     if (err) {
+      console.error('❌ JWT verification failed:', err.message);
       return res.status(403).json({
         success: false,
         error: 'Invalid token',
         code: 'TOKEN_INVALID',
+        details: process.env.NODE_ENV === 'development' ? err.message : 'Token verification failed',
         timestamp: new Date().toISOString()
       });
     }
@@ -463,6 +503,7 @@ export const authenticateToken = (req, res, next) => {
       req.userPermissions = { permissions: [], roles: [], maxRoleLevel: 0 };
     }
 
+    console.log(`✅ User authenticated: ${decoded.sub}`);
     next();
   });
 };
@@ -625,6 +666,7 @@ export default {
   requireRole,
   requireMinRoleLevel,
   requireAnyPermission,
+  getKey,
   SYSTEM_ROLES,
   SYSTEM_PERMISSIONS
 };

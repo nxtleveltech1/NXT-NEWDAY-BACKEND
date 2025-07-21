@@ -9,18 +9,32 @@ class CacheService {
     this.isConnected = false;
     this.defaultTTL = 3600; // 1 hour default TTL
     this.memoryCache = new Map();
-    this.memoryCacheSize = 100; // Keep 100 items in memory
+    this.memoryCacheSize = 50; // Reduced from 100 to 50 items in memory for better memory usage
     this.memoryCacheTTL = 300; // 5 minutes in memory
+    
+    // Setup periodic cleanup to prevent memory leaks
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupExpiredMemoryCache();
+    }, 60000); // Cleanup every minute
   }
 
   async connect() {
     try {
-      this.client = createClient({
+      const redisConfig = {
         url: process.env.REDIS_URL || 'redis://localhost:6379',
+        socket: {
+          connectTimeout: parseInt(process.env.REDIS_CONNECT_TIMEOUT || '5000'),
+        },
+        // Only set password if it exists and is not empty
+        ...(process.env.REDIS_PASSWORD && process.env.REDIS_PASSWORD.trim() !== '' && {
+          password: process.env.REDIS_PASSWORD
+        }),
         retry_delay_on_failover: 100,
         retry_delay_on_cluster_down: 300,
-        max_attempts: 3
-      });
+        max_attempts: parseInt(process.env.REDIS_MAX_RETRIES || '3')
+      };
+
+      this.client = createClient(redisConfig);
 
       this.client.on('error', (err) => {
         console.error('Redis Client Error:', err);
@@ -51,11 +65,26 @@ class CacheService {
       await this.client.disconnect();
       this.isConnected = false;
     }
+    
+    // Clear cleanup interval to prevent memory leaks
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    
+    // Clear memory cache
+    this.memoryCache.clear();
   }
 
   async get(key) {
     if (!this.isConnected) {
-      console.warn('Redis not connected, skipping cache get');
+      console.warn('Redis not connected, using fallback memory cache for get');
+      // Fallback to memory cache
+      const memoryKey = `fallback:${key}`;
+      const memoryItem = this.memoryCache.get(memoryKey);
+      if (memoryItem && memoryItem.expires > Date.now()) {
+        return memoryItem.data;
+      }
       return null;
     }
 
@@ -73,8 +102,11 @@ class CacheService {
 
   async set(key, value, ttl = this.defaultTTL) {
     if (!this.isConnected) {
-      console.warn('Redis not connected, skipping cache set');
-      return false;
+      console.warn('Redis not connected, using fallback memory cache for set');
+      // Fallback to memory cache
+      const memoryKey = `fallback:${key}`;
+      this.setMemoryCache(memoryKey, value);
+      return true;
     }
 
     try {
@@ -241,16 +273,45 @@ class CacheService {
   }
 
   setMemoryCache(key, data) {
-    // Implement LRU eviction
+    // Enhanced memory management with periodic cleanup
+    this.cleanupExpiredMemoryCache();
+    
+    // Implement LRU eviction with size limit
     if (this.memoryCache.size >= this.memoryCacheSize) {
-      const firstKey = this.memoryCache.keys().next().value;
-      this.memoryCache.delete(firstKey);
+      // Remove oldest entries (LRU)
+      const keysToRemove = Array.from(this.memoryCache.keys()).slice(0, Math.floor(this.memoryCacheSize * 0.2));
+      keysToRemove.forEach(key => this.memoryCache.delete(key));
+    }
+    
+    // Prevent memory leaks from oversized data
+    const serializedSize = JSON.stringify(data).length;
+    if (serializedSize > 1024 * 1024) { // 1MB limit per cache entry
+      console.warn(`Cache entry too large (${serializedSize} bytes), skipping memory cache for key: ${key}`);
+      return;
     }
     
     this.memoryCache.set(key, {
       data,
-      expires: Date.now() + (this.memoryCacheTTL * 1000)
+      expires: Date.now() + (this.memoryCacheTTL * 1000),
+      size: serializedSize
     });
+  }
+  
+  cleanupExpiredMemoryCache() {
+    const now = Date.now();
+    const keysToRemove = [];
+    
+    for (const [key, value] of this.memoryCache.entries()) {
+      if (value.expires < now) {
+        keysToRemove.push(key);
+      }
+    }
+    
+    keysToRemove.forEach(key => this.memoryCache.delete(key));
+    
+    if (keysToRemove.length > 0) {
+      console.log(`Cleaned up ${keysToRemove.length} expired cache entries`);
+    }
   }
 
   // Cache analytics data with enhanced strategy

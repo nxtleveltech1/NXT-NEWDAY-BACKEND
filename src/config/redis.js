@@ -10,14 +10,17 @@ const redisConfig = {
   socket: {
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379'),
-    connectTimeout: 5000,
+    connectTimeout: parseInt(process.env.REDIS_CONNECT_TIMEOUT || '5000'),
     lazyConnect: true,
   },
-  password: process.env.REDIS_PASSWORD || undefined,
+  // Only set password if it exists and is not empty
+  ...(process.env.REDIS_PASSWORD && process.env.REDIS_PASSWORD.trim() !== '' && {
+    password: process.env.REDIS_PASSWORD
+  }),
   database: parseInt(process.env.REDIS_DB || '0'),
   retryDelayOnFailover: 100,
   enableReadyCheck: true,
-  maxRetriesPerRequest: 3,
+  maxRetriesPerRequest: parseInt(process.env.REDIS_MAX_RETRIES || '3'),
   lazyConnect: true,
 };
 

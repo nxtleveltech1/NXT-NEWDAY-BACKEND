@@ -204,20 +204,22 @@ router.post('/recommendations', async (req, res) => {
       });
     }
 
-    // Gather comprehensive analytics data for recommendations
+    // Gather comprehensive analytics data for recommendations with memory optimization
     let analyticsData = {};
     
     try {
-      const [inventoryAnalytics, reorderSuggestions, suppliersData] = await Promise.all([
-        inventoryQueries.getInventoryAnalytics({}),
-        inventoryQueries.getReorderSuggestions(),
-        supplierQueries.getSuppliers({ page: 1, limit: 100, isActive: true })
-      ]);
+      // Reduce concurrent queries and limit data size to prevent memory spikes
+      const inventoryAnalytics = await inventoryQueries.getInventoryAnalytics({});
+      const reorderSuggestions = await inventoryQueries.getReorderSuggestions();
+      const suppliersData = await supplierQueries.getSuppliers({ page: 1, limit: 50, isActive: true }); // Reduced from 100 to 50
 
       analyticsData = {
-        inventory: inventoryAnalytics,
-        reorderSuggestions,
-        suppliers: suppliersData.data,
+        inventory: {
+          summary: inventoryAnalytics.summary, // Only include summary to reduce memory usage
+          categoryBreakdown: inventoryAnalytics.categoryBreakdown?.slice(0, 10) || [] // Limit categories
+        },
+        reorderSuggestions: reorderSuggestions.slice(0, 20), // Limit reorder suggestions to top 20
+        suppliers: suppliersData.data?.slice(0, 20) || [], // Limit suppliers to top 20
         timestamp: new Date().toISOString()
       };
     } catch (error) {

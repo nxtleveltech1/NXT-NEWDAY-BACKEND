@@ -4,8 +4,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
+    "start": "node --max-old-space-size=2048 index.js",
+    "dev": "nodemon --max-old-space-size=2048 index.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "cross-env DOTENV_CONFIG_PATH=./.env.production node -r dotenv/config scripts/run-migrations.js",
     "db:migrate:sql": "drizzle-kit generate:sql",

@@ -137,9 +137,14 @@ async function validateMigration() {
   // 5. Redis Validation
   console.log('\n💾 Validating Redis Cache...');
   try {
-    const redis = createClient({
-      url: process.env.REDIS_URL || 'redis://localhost:6379'
-    });
+    const redisConfig = {
+      url: process.env.REDIS_URL || 'redis://localhost:6379',
+      // Only set password if it exists and is not empty
+      ...(process.env.REDIS_PASSWORD && process.env.REDIS_PASSWORD.trim() !== '' && {
+        password: process.env.REDIS_PASSWORD
+      }),
+    };
+    const redis = createClient(redisConfig);
     
     await redis.connect();
     await redis.set('test:key', 'test-value');

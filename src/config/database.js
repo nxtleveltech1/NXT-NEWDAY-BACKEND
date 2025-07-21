@@ -1,97 +1,36 @@
 import { config } from 'dotenv';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import ws from 'ws';
+import { drizzle } from 'drizzle-orm/neon-http';
+import { neon } from '@neondatabase/serverless';
 import * as schema from '../db/schema.js';
 
 // Load environment variables
 config();
-
-// Configure Neon for local development (if needed)
-if (process.env.NODE_ENV !== 'production') {
-  // Set WebSocket implementation for local development
-  neonConfig.webSocketConstructor = ws;
-}
 
 // Validate required environment variables
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is required');
 }
 
-// Create connection pool with optimized settings for performance
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  // Optimized connection pool settings
-  min: parseInt(process.env.DB_POOL_MIN || '5'), // Increased minimum for better performance
-  max: parseInt(process.env.DB_POOL_MAX || '20'), // Increased max for high concurrency
-  idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT || '10000'), // Reduced idle timeout
-  connectionTimeoutMillis: 5000,
-  // Keep connections alive
-  keepAlive: true,
-  keepAliveInitialDelayMillis: 10000,
-  // Statement timeout for long-running queries
-  statement_timeout: parseInt(process.env.DB_STATEMENT_TIMEOUT || '30000'),
-  // Query timeout
-  query_timeout: parseInt(process.env.DB_QUERY_TIMEOUT || '30000'),
-  // SSL is required for Neon
-  ssl: {
-    rejectUnauthorized: true
+// Create Neon HTTP connection with optimized configuration
+const sql = neon(process.env.DATABASE_URL, {
+  // Connection pool settings for memory optimization
+  arrayMode: false,
+  fullResults: false,
+  fetchOptions: {
+    cache: 'no-store', // Prevent caching at HTTP level to save memory
   }
 });
 
-// Create Drizzle ORM instance with Neon serverless adapter
-export const db = drizzle(pool, {
-  logger: process.env.NODE_ENV === 'development',
+// Create Drizzle ORM instance with Neon HTTP adapter
+export const db = drizzle(sql, {
+  logger: process.env.NODE_ENV === 'development' && process.env.DB_LOGGING !== 'false',
   schema
 });
-
-// Pool monitoring
-let poolStats = {
-  totalConnections: 0,
-  idleConnections: 0,
-  activeConnections: 0,
-  waitingRequests: 0,
-  errors: 0,
-  lastError: null
-};
-
-// Monitor pool events
-pool.on('connect', () => {
-  poolStats.totalConnections++;
-});
-
-pool.on('acquire', () => {
-  poolStats.activeConnections++;
-  poolStats.idleConnections = Math.max(0, poolStats.idleConnections - 1);
-});
-
-pool.on('release', () => {
-  poolStats.activeConnections = Math.max(0, poolStats.activeConnections - 1);
-  poolStats.idleConnections++;
-});
-
-pool.on('error', (err) => {
-  poolStats.errors++;
-  poolStats.lastError = err.message;
-  console.error('Pool error:', err);
-});
-
-// Export pool statistics
-export function getPoolStats() {
-  return {
-    ...poolStats,
-    totalCount: pool.totalCount,
-    idleCount: pool.idleCount,
-    waitingCount: pool.waitingCount
-  };
-}
 
 // Database connection test function
 export async function testConnection() {
   try {
-    const client = await pool.connect();
-    const result = await client.query('SELECT 1');
-    client.release();
+    const result = await sql`SELECT 1 as test`;
     console.log('Database connection successful');
     return true;
   } catch (error) {
@@ -100,25 +39,19 @@ export async function testConnection() {
   }
 }
 
-// Graceful shutdown handler
-export async function closeDatabase() {
-  try {
-    await pool.end();
-    console.log('Database pool closed');
-  } catch (error) {
-    console.error('Error closing database pool:', error);
-  }
+// Export pool statistics (mock for HTTP connections)
+export function getPoolStats() {
+  return {
+    totalConnections: 1,
+    idleConnections: 0,
+    activeConnections: 1,
+    waitingRequests: 0,
+    errors: 0,
+    lastError: null,
+    totalCount: 1,
+    idleCount: 0,
+    waitingCount: 0
+  };
 }
-
-// Handle process termination
-process.on('SIGINT', async () => {
-  await closeDatabase();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  await closeDatabase();
-  process.exit(0);
-});
 
 export default db;

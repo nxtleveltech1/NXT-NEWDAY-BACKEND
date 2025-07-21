@@ -14,92 +14,137 @@ class MaterializedViewRefreshService {
     this.isRunning = false;
     this.refreshHistory = [];
     this.maxHistorySize = 100;
+    this.backgroundInitializationComplete = false;
+    this.jobsStartedCount = 0;
   }
 
   /**
-   * Initialize and start all refresh jobs
+   * Initialize and start all refresh jobs with API priority optimization
+   * CRITICAL: This method is now NON-BLOCKING to prevent server startup delays
    */
   async initialize() {
     try {
-      console.log('Initializing materialized view refresh service...');
+      console.log('Initializing materialized view refresh service with API priority optimization...');
       
-      // Define refresh schedules for different views
-      this.defineRefreshSchedules();
+      // Check current server load before starting heavy operations
+      const memUsage = process.memoryUsage();
+      const memUsagePercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
       
-      // Start all jobs
-      this.startAllJobs();
+      if (memUsagePercent > 75) {
+        console.warn(`High memory usage detected (${memUsagePercent.toFixed(1)}%). Delaying materialized view initialization.`);
+        // Delay initialization by 5 minutes when system is under load
+        setTimeout(() => {
+          this.initializeDelayed();
+        }, 5 * 60 * 1000);
+        return;
+      }
+      
+      // Define refresh schedules for different views with optimized intervals
+      this.defineOptimizedRefreshSchedules();
+      
+      // CRITICAL FIX: Start all jobs in background WITHOUT blocking server startup
+      this.startAllJobsStaggeredInBackground();
       
       this.isRunning = true;
-      console.log('Materialized view refresh service initialized successfully');
+      console.log('Materialized view refresh service initialized successfully with optimization (jobs starting in background)');
     } catch (error) {
       console.error('Failed to initialize materialized view refresh service:', error);
-      throw error;
+      // Continue without throwing to avoid blocking server startup
+      this.isRunning = false;
     }
   }
 
   /**
-   * Define refresh schedules for materialized views
+   * Define optimized refresh schedules prioritizing API responsiveness
    */
-  defineRefreshSchedules() {
-    // Analytics daily aggregates - refresh every hour
-    this.addJob('analytics_daily_aggregates_mv', '0 * * * *', async () => {
-      await this.refreshView('analytics_daily_aggregates_mv');
+  defineOptimizedRefreshSchedules() {
+    // CRITICAL: Schedule intensive operations during off-peak hours (1-5 AM)
+    // Reduce frequency during business hours (9 AM - 6 PM)
+    
+    // Analytics daily aggregates - reduced to every 3 hours during business hours
+    this.addJob('analytics_daily_aggregates_mv', '0 1,4,7,10,13,16,19,22 * * *', async () => {
+      await this.refreshViewWithThrottling('analytics_daily_aggregates_mv', 'high');
     });
 
-    // Analytics monthly aggregates - refresh daily at 2 AM
+    // Analytics monthly aggregates - only during off-peak at 2 AM
     this.addJob('analytics_monthly_aggregates_mv', '0 2 * * *', async () => {
-      await this.refreshView('analytics_monthly_aggregates_mv');
+      await this.refreshViewWithThrottling('analytics_monthly_aggregates_mv', 'low');
     });
 
-    // Customer segments - refresh every 6 hours
-    this.addJob('customer_segments_mv', '0 */6 * * *', async () => {
-      await this.refreshView('customer_segments_mv');
+    // Customer segments - reduced to every 8 hours, avoid business hours
+    this.addJob('customer_segments_mv', '0 2,10,18 * * *', async () => {
+      await this.refreshViewWithThrottling('customer_segments_mv', 'medium');
     });
 
-    // Supplier performance metrics - refresh every 4 hours
-    this.addJob('supplier_performance_mv', '0 */4 * * *', async () => {
-      await this.refreshView('supplier_performance_mv');
+    // Supplier performance metrics - every 6 hours, off-peak preferred
+    this.addJob('supplier_performance_mv', '0 3,9,15,21 * * *', async () => {
+      await this.refreshViewWithThrottling('supplier_performance_mv', 'medium');
     });
 
-    // Inventory metrics - refresh every 2 hours
-    this.addJob('inventory_metrics_mv', '0 */2 * * *', async () => {
-      await this.refreshView('inventory_metrics_mv');
+    // Inventory metrics - MOST CRITICAL - reduced to every 4 hours but prioritized
+    this.addJob('inventory_metrics_mv', '0 1,5,9,13,17,21 * * *', async () => {
+      await this.refreshViewWithThrottling('inventory_metrics_mv', 'critical');
     });
 
-    // Product sales velocity - refresh every 3 hours
-    this.addJob('product_sales_velocity_mv', '0 */3 * * *', async () => {
-      await this.refreshView('product_sales_velocity_mv');
+    // Product sales velocity - every 6 hours, off-peak
+    this.addJob('product_sales_velocity_mv', '0 4,10,16,22 * * *', async () => {
+      await this.refreshViewWithThrottling('product_sales_velocity_mv', 'medium');
     });
 
-    // Real-time dashboards - refresh every 15 minutes
-    this.addJob('realtime_dashboard_mv', '*/15 * * * *', async () => {
-      await this.refreshView('realtime_dashboard_mv');
-    });
+    // Real-time dashboards - DISABLED - too frequent, use cache instead
+    // this.addJob('realtime_dashboard_mv', '*/15 * * * *', async () => {
+    //   await this.refreshView('realtime_dashboard_mv');
+    // });
 
-    // Dead stock analysis - refresh daily at 3 AM
+    // Dead stock analysis - only at 3 AM
     this.addJob('dead_stock_analysis_mv', '0 3 * * *', async () => {
-      await this.refreshView('dead_stock_analysis_mv');
+      await this.refreshViewWithThrottling('dead_stock_analysis_mv', 'low');
     });
 
-    // Customer lifetime value - refresh weekly on Sunday at 4 AM
+    // Customer lifetime value - only weekly Sunday 4 AM
     this.addJob('customer_lifetime_value_mv', '0 4 * * 0', async () => {
-      await this.refreshView('customer_lifetime_value_mv');
+      await this.refreshViewWithThrottling('customer_lifetime_value_mv', 'low');
     });
 
-    // ABC analysis - refresh daily at 1 AM
+    // ABC analysis - only at 1 AM
     this.addJob('abc_analysis_mv', '0 1 * * *', async () => {
-      await this.refreshView('abc_analysis_mv');
+      await this.refreshViewWithThrottling('abc_analysis_mv', 'low');
     });
   }
 
   /**
-   * Add a refresh job
+   * Delayed initialization for high-load scenarios
+   * CRITICAL: This method is also NON-BLOCKING
+   */
+  async initializeDelayed() {
+    try {
+      console.log('Starting delayed materialized view initialization...');
+      this.defineOptimizedRefreshSchedules();
+      // Use non-blocking background startup for delayed initialization too
+      this.startAllJobsStaggeredInBackground();
+      this.isRunning = true;
+      console.log('Delayed materialized view refresh service initialized successfully (jobs starting in background)');
+    } catch (error) {
+      console.error('Failed delayed initialization:', error);
+      this.isRunning = false;
+    }
+  }
+
+  /**
+   * Add a refresh job with API priority awareness
    */
   addJob(viewName, schedule, refreshFunction) {
     const job = cron.schedule(schedule, async () => {
       try {
+        // Check system load before executing heavy operations
+        if (await this.shouldSkipRefreshDueToLoad(viewName)) {
+          console.log(`Skipping refresh for ${viewName} due to high system load`);
+          this.recordRefresh(viewName, false, 0, 'Skipped due to high load');
+          return;
+        }
+
         const startTime = Date.now();
-        console.log(`Starting refresh for ${viewName}...`);
+        console.log(`Starting optimized refresh for ${viewName}...`);
         
         await refreshFunction();
         
@@ -119,7 +164,36 @@ class MaterializedViewRefreshService {
   }
 
   /**
-   * Refresh a specific materialized view
+   * Refresh a specific materialized view with throttling and priority awareness
+   */
+  async refreshViewWithThrottling(viewName, priority = 'medium') {
+    try {
+      // Add artificial delay for non-critical refreshes during business hours
+      const currentHour = new Date().getHours();
+      const isBusinessHours = currentHour >= 9 && currentHour <= 18;
+      
+      if (isBusinessHours && priority !== 'critical') {
+        // Add 5-15 second delay during business hours for non-critical refreshes
+        const delay = priority === 'low' ? 15000 : 5000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+
+      // Execute refresh with timeout to prevent hanging operations
+      const refreshPromise = this.refreshView(viewName);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Refresh timeout')), 300000); // 5 minute timeout
+      });
+
+      await Promise.race([refreshPromise, timeoutPromise]);
+      return true;
+    } catch (error) {
+      console.error(`Throttled refresh failed for ${viewName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Refresh a specific materialized view (original method)
    */
   async refreshView(viewName) {
     try {
@@ -167,7 +241,64 @@ class MaterializedViewRefreshService {
   }
 
   /**
-   * Start all scheduled jobs
+   * Start all scheduled jobs in background with staggered startup (NON-BLOCKING)
+   * CRITICAL: This method runs in background without blocking server startup
+   */
+  startAllJobsStaggeredInBackground() {
+    const jobEntries = Array.from(this.jobs.entries());
+    this.jobsStartedCount = 0;
+    this.backgroundInitializationComplete = false;
+    
+    // Run the staggered startup in background without blocking
+    setTimeout(async () => {
+      try {
+        console.log('Starting materialized view refresh jobs in background...');
+        
+        for (let i = 0; i < jobEntries.length; i++) {
+          const [viewName, { job }] = jobEntries[i];
+          
+          // Stagger job startup by 30 seconds to prevent simultaneous heavy operations
+          if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, 30000));
+          }
+          
+          job.start();
+          this.jobsStartedCount++;
+          console.log(`Started refresh job for ${viewName} (${i + 1}/${jobEntries.length})`);
+        }
+        
+        this.backgroundInitializationComplete = true;
+        console.log('All materialized view refresh jobs started successfully in background');
+      } catch (error) {
+        console.error('Error starting materialized view jobs in background:', error);
+        this.isRunning = false;
+        this.backgroundInitializationComplete = false;
+      }
+    }, 100); // Start immediately in background (100ms delay to ensure method returns first)
+  }
+
+  /**
+   * Start all scheduled jobs with staggered startup to avoid resource contention
+   * LEGACY METHOD: Still available for manual/testing use but should not be used during server startup
+   */
+  async startAllJobsStaggered() {
+    const jobEntries = Array.from(this.jobs.entries());
+    
+    for (let i = 0; i < jobEntries.length; i++) {
+      const [viewName, { job }] = jobEntries[i];
+      
+      // Stagger job startup by 30 seconds to prevent simultaneous heavy operations
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, 30000));
+      }
+      
+      job.start();
+      console.log(`Started refresh job for ${viewName} (${i + 1}/${jobEntries.length})`);
+    }
+  }
+
+  /**
+   * Start all scheduled jobs (legacy method)
    */
   startAllJobs() {
     for (const [viewName, { job }] of this.jobs.entries()) {
@@ -235,20 +366,70 @@ class MaterializedViewRefreshService {
     
     return {
       isRunning: this.isRunning,
+      backgroundInitializationComplete: this.backgroundInitializationComplete,
+      jobsStartedCount: this.jobsStartedCount,
+      totalJobs: this.jobs.size,
       views: status,
       totalRefreshes: this.refreshHistory.length
     };
   }
 
   /**
-   * Record refresh attempt in history
+   * Get current initialization status (useful for monitoring during startup)
+   */
+  getInitializationStatus() {
+    return {
+      serviceInitialized: this.isRunning,
+      backgroundJobsStarting: this.isRunning && !this.backgroundInitializationComplete,
+      backgroundJobsComplete: this.backgroundInitializationComplete,
+      jobsStartedCount: this.jobsStartedCount,
+      totalJobsToStart: this.jobs.size,
+      initializationProgress: this.jobs.size > 0 ? (this.jobsStartedCount / this.jobs.size) * 100 : 0
+    };
+  }
+
+  /**
+   * Check if refresh should be skipped due to high system load
+   */
+  async shouldSkipRefreshDueToLoad(viewName) {
+    try {
+      const memUsage = process.memoryUsage();
+      const memUsagePercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+      const cpuUsage = process.cpuUsage();
+      
+      // Skip non-critical refreshes if memory usage > 85%
+      if (memUsagePercent > 85) {
+        const criticalViews = ['inventory_metrics_mv'];
+        if (!criticalViews.includes(viewName)) {
+          return true;
+        }
+      }
+      
+      // Skip if memory usage > 95% for all refreshes
+      if (memUsagePercent > 95) {
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error checking system load:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Record refresh attempt in history with performance metrics
    */
   recordRefresh(viewName, success, duration, error = null) {
+    const memUsage = process.memoryUsage();
+    const memUsagePercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+    
     const record = {
       viewName,
       success,
       duration,
       error,
+      memoryUsage: memUsagePercent.toFixed(1),
       timestamp: new Date().toISOString()
     };
     
@@ -281,17 +462,17 @@ class MaterializedViewRefreshService {
             c.id,
             c.customer_code,
             c.company_name,
-            COUNT(DISTINCT ph.order_id) as total_orders,
-            SUM(ph.total_amount) as lifetime_value,
-            MAX(ph.created_at) as last_purchase_date,
+            COUNT(DISTINCT po.id) as total_orders,
+            COALESCE(SUM(po.total_amount), 0) as lifetime_value,
+            MAX(po.order_date) as last_purchase_date,
             CASE 
-              WHEN SUM(ph.total_amount) > 10000 THEN 'VIP'
-              WHEN SUM(ph.total_amount) > 5000 THEN 'Gold'
-              WHEN SUM(ph.total_amount) > 1000 THEN 'Silver'
+              WHEN COALESCE(SUM(po.total_amount), 0) > 10000 THEN 'VIP'
+              WHEN COALESCE(SUM(po.total_amount), 0) > 5000 THEN 'Gold'
+              WHEN COALESCE(SUM(po.total_amount), 0) > 1000 THEN 'Silver'
               ELSE 'Bronze'
             END as segment
           FROM customers c
-          LEFT JOIN purchase_orders ph ON c.id = ph.customer_id
+          LEFT JOIN purchase_orders po ON c.id = po.customer_id
           GROUP BY c.id, c.customer_code, c.company_name
           WITH DATA
         `
@@ -301,6 +482,7 @@ class MaterializedViewRefreshService {
         query: `
           CREATE MATERIALIZED VIEW IF NOT EXISTS inventory_metrics_mv AS
           SELECT 
+            i.id,
             i.product_id,
             i.warehouse_id,
             i.quantity_on_hand,
@@ -310,11 +492,14 @@ class MaterializedViewRefreshService {
             i.reorder_quantity,
             CASE 
               WHEN i.quantity_available <= 0 THEN 'out_of_stock'
-              WHEN i.quantity_available <= i.reorder_point THEN 'low_stock'
+              WHEN i.quantity_available <= COALESCE(i.reorder_point, 0) THEN 'low_stock'
               ELSE 'in_stock'
-            END as stock_status
+            END as calculated_stock_status,
+            i.stock_status,
+            i.average_cost,
+            i.created_at,
+            i.updated_at
           FROM inventory i
-          WHERE i.is_active = true
           WITH DATA
         `
       }

@@ -1189,6 +1189,10 @@ async function logEvent(eventType, eventData) {
   }
 }
 
+// Global monitoring state to prevent memory leaks
+let monitoringInterval = null;
+let isMonitoringActive = false;
+
 /**
  * Start monitoring system
  * @param {Object} options - Monitoring options
@@ -1196,24 +1200,55 @@ async function logEvent(eventType, eventData) {
 export async function startMonitoring(options = {}) {
   console.log('Integration monitoring started');
   
-  // Set up periodic health checks
-  const healthCheckInterval = options.healthCheckInterval || 300000; // 5 minutes
-  setInterval(async () => {
+  // Prevent multiple monitoring instances
+  if (isMonitoringActive) {
+    console.warn('Monitoring is already active');
+    return { success: true, message: 'Monitoring already running' };
+  }
+  
+  // Optimized health check interval for memory efficiency
+  const healthCheckInterval = options.healthCheckInterval || 600000; // 10 minutes instead of 5
+  
+  monitoringInterval = setInterval(async () => {
     try {
-      await performSystemHealthCheck({ includeDetailedMetrics: false });
+      // Use memory-efficient health check with limited metrics
+      await performSystemHealthCheck({ 
+        includeDetailedMetrics: false,
+        checkExternalServices: false // Skip external service checks to reduce overhead
+      });
+      
+      // Force garbage collection if available (Node.js --expose-gc flag)
+      if (global.gc && Math.random() < 0.1) { // 10% chance to run GC
+        global.gc();
+      }
     } catch (error) {
       console.error('Scheduled health check failed:', error);
     }
   }, healthCheckInterval);
   
+  isMonitoringActive = true;
+  
   return { success: true, message: 'Monitoring started successfully' };
+}
+
+/**
+ * Stop monitoring system
+ */
+export function stopMonitoring() {
+  if (monitoringInterval) {
+    clearInterval(monitoringInterval);
+    monitoringInterval = null;
+  }
+  isMonitoringActive = false;
+  console.log('Integration monitoring stopped');
 }
 
 export const integrationMonitoringService = {
   performSystemHealthCheck,
   performAutomatedRecovery,
   collectPerformanceMetrics,
-  startMonitoring
+  startMonitoring,
+  stopMonitoring
 };
 
 export default {

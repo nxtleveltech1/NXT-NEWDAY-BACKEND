@@ -18,13 +18,21 @@ class DDoSProtectionService {
       suspiciousActivity: 0,
       totalRequests: 0
     };
+    this.eventBatch = null; // For batching security events
   }
 
   async initialize() {
     try {
       // Try to connect to Redis, fallback to memory if unavailable
       if (process.env.REDIS_URL) {
-        this.redis = createClient({ url: process.env.REDIS_URL });
+        const redisConfig = {
+          url: process.env.REDIS_URL,
+          // Only set password if it exists and is not empty
+          ...(process.env.REDIS_PASSWORD && process.env.REDIS_PASSWORD.trim() !== '' && {
+            password: process.env.REDIS_PASSWORD
+          }),
+        };
+        this.redis = createClient(redisConfig);
         await this.redis.connect();
         console.log('✅ DDoS Protection: Redis connected');
       } else {
@@ -317,28 +325,91 @@ class DDoSProtectionService {
   }
 
   /**
-   * Log security events
+   * Log security events with batching and throttling
    */
   async logSecurityEvent(eventType, details) {
     try {
-      await db.insert(timeSeriesMetrics).values({
-        timestamp: new Date(),
-        metricName: 'ddos_protection_event',
-        metricType: 'counter',
-        dimension1: eventType,
-        dimension2: details.ip || 'unknown',
-        dimension3: details.endpoint || 'unknown',
-        value: 1,
-        tags: {
-          ...details,
-          severity: this.getSeverityLevel(eventType),
-          service: 'ddos_protection'
-        }
-      });
+      // Check system load before logging non-critical events
+      const severity = this.getSeverityLevel(eventType);
+      const memUsage = process.memoryUsage();
+      const memUsagePercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+      
+      // Skip logging low severity events during high load
+      if (memUsagePercent > 85 && severity === 'LOW') {
+        return;
+      }
 
-      console.warn(`🛡️ DDoS Protection [${eventType}]:`, details);
+      // Batch non-critical events to reduce database pressure
+      if (severity === 'MEDIUM' || severity === 'LOW') {
+        this.batchSecurityEvent(eventType, details);
+      } else {
+        // Log critical events immediately
+        await db.insert(timeSeriesMetrics).values({
+          timestamp: new Date(),
+          metricName: 'ddos_protection_event',
+          metricType: 'counter',
+          dimension1: eventType,
+          dimension2: details.ip || 'unknown',
+          dimension3: details.endpoint || 'unknown',
+          value: 1,
+          tags: {
+            ...details,
+            severity,
+            service: 'ddos_protection'
+          }
+        });
+      }
+
+      // Only log to console for high severity events or during low load
+      if (severity === 'HIGH' || severity === 'CRITICAL' || memUsagePercent < 70) {
+        console.warn(`🛡️ DDoS Protection [${eventType}]:`, details);
+      }
     } catch (error) {
       console.error('Failed to log DDoS protection event:', error);
+    }
+  }
+
+  /**
+   * Batch security events to reduce database load
+   */
+  batchSecurityEvent(eventType, details) {
+    if (!this.eventBatch) {
+      this.eventBatch = [];
+      // Process batch every 30 seconds
+      setTimeout(() => this.processBatchedEvents(), 30000);
+    }
+
+    this.eventBatch.push({
+      timestamp: new Date(),
+      metricName: 'ddos_protection_event',
+      metricType: 'counter',
+      dimension1: eventType,
+      dimension2: details.ip || 'unknown',
+      dimension3: details.endpoint || 'unknown',
+      value: 1,
+      tags: {
+        ...details,
+        severity: this.getSeverityLevel(eventType),
+        service: 'ddos_protection'
+      }
+    });
+  }
+
+  /**
+   * Process batched security events
+   */
+  async processBatchedEvents() {
+    if (!this.eventBatch || this.eventBatch.length === 0) {
+      return;
+    }
+
+    try {
+      await db.insert(timeSeriesMetrics).values(this.eventBatch);
+      console.log(`Processed ${this.eventBatch.length} batched DDoS protection events`);
+    } catch (error) {
+      console.error('Failed to process batched events:', error);
+    } finally {
+      this.eventBatch = null;
     }
   }
 
@@ -387,43 +458,55 @@ class DDoSProtectionService {
   }
 
   /**
-   * Start analytics reporting
+   * Start optimized analytics reporting with reduced frequency
    */
   startAnalyticsReporting() {
     setInterval(async () => {
       try {
+        // Check if we should skip reporting during high load
+        const memUsage = process.memoryUsage();
+        const memUsagePercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+        
+        if (memUsagePercent > 90) {
+          console.log('Skipping DDoS analytics reporting due to high memory usage');
+          return;
+        }
+
         const stats = this.getStatistics();
         
-        await db.insert(timeSeriesMetrics).values([
-          {
-            timestamp: new Date(),
-            metricName: 'ddos_requests_blocked',
-            metricType: 'counter',
-            value: stats.requestsBlocked,
-            tags: { service: 'ddos_protection' }
-          },
-          {
-            timestamp: new Date(),
-            metricName: 'ddos_suspicious_activity',
-            metricType: 'counter',
-            value: stats.suspiciousActivity,
-            tags: { service: 'ddos_protection' }
-          },
-          {
-            timestamp: new Date(),
-            metricName: 'ddos_total_requests',
-            metricType: 'counter',
-            value: stats.totalRequests,
-            tags: { service: 'ddos_protection' }
-          },
-          {
-            timestamp: new Date(),
-            metricName: 'ddos_blocked_ips',
-            metricType: 'gauge',
-            value: stats.blockedIPs,
-            tags: { service: 'ddos_protection' }
-          }
-        ]);
+        // Only report if there's meaningful data to reduce database load
+        if (stats.requestsBlocked > 0 || stats.suspiciousActivity > 0 || stats.totalRequests > 100) {
+          await db.insert(timeSeriesMetrics).values([
+            {
+              timestamp: new Date(),
+              metricName: 'ddos_requests_blocked',
+              metricType: 'counter',
+              value: stats.requestsBlocked,
+              tags: { service: 'ddos_protection' }
+            },
+            {
+              timestamp: new Date(),
+              metricName: 'ddos_suspicious_activity',
+              metricType: 'counter',
+              value: stats.suspiciousActivity,
+              tags: { service: 'ddos_protection' }
+            },
+            {
+              timestamp: new Date(),
+              metricName: 'ddos_total_requests',
+              metricType: 'counter',
+              value: stats.totalRequests,
+              tags: { service: 'ddos_protection' }
+            },
+            {
+              timestamp: new Date(),
+              metricName: 'ddos_blocked_ips',
+              metricType: 'gauge',
+              value: stats.blockedIPs,
+              tags: { service: 'ddos_protection' }
+            }
+          ]);
+        }
 
         // Reset counters
         this.analytics.requestsBlocked = 0;
@@ -433,7 +516,7 @@ class DDoSProtectionService {
       } catch (error) {
         console.error('Error reporting DDoS analytics:', error);
       }
-    }, 60000); // Every minute
+    }, 300000); // Reduced from 1 minute to 5 minutes
   }
 
   /**

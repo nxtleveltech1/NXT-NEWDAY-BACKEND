@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { db } from '../config/database.js';
 import { sql } from 'drizzle-orm';
+import queryOptimizationService from './query-optimization.service.js';
 
 /**
  * Real-time Updates Service for Inventory
@@ -323,41 +324,89 @@ class RealtimeInventoryService extends EventEmitter {
    * Setup polling fallback when LISTEN/NOTIFY is not available
    */
   setupPollingFallback() {
-    console.log('Setting up polling fallback for real-time updates');
+    // CRITICAL FIX: Prevent multiple polling instances
+    if (this.pollingInterval) {
+      console.log('Polling fallback already active, preventing duplicate setup');
+      return;
+    }
     
-    // Poll for changes every 30 seconds as fallback
-    setInterval(async () => {
+    console.log('Setting up optimized polling fallback for real-time updates');
+    
+    // Memory optimization: Cache previous results to avoid redundant processing
+    let lastLowStockItems = new Set();
+    let pollingInterval = null;
+    let consecutiveErrors = 0;
+    const maxConsecutiveErrors = 5;
+    const basePollingInterval = 300000; // 5 minutes instead of 30 seconds
+    
+    const pollForChanges = async () => {
       try {
-        // Check for low stock items
-        const lowStockItems = await db.execute(sql`
-          SELECT i.id as inventory_id, i.product_id, p.sku, p.name, i.warehouse_id,
-                 i.quantity_on_hand, i.reorder_point
-          FROM inventory i
-          JOIN products p ON i.product_id = p.id
-          WHERE i.quantity_on_hand <= COALESCE(i.reorder_point, 0)
-            AND i.reorder_point IS NOT NULL
-            AND i.reorder_point > 0
-        `);
+        // Only poll if there are active connections to avoid unnecessary queries
+        if (this.connections.size === 0) {
+          return;
+        }
+
+        // Use optimized query service to prevent runaway queries
+        const queryResult = await queryOptimizationService.getOptimizedLowStockItems({
+          limit: 20,
+          maxAge: 300000, // 5 minutes cache
+          includeInactive: false
+        });
+
+        if (!queryResult.success) {
+          throw new Error(queryResult.error || 'Query optimization service failed');
+        }
+
+        const lowStockItems = queryResult.data;
+        console.log(`Query executed in ${queryResult.queryTime || 'N/A'}ms (${queryResult.source})`);
 
         const items = Array.isArray(lowStockItems) ? lowStockItems : [];
+        const currentLowStockItems = new Set(items.map(item => `${item.inventory_id}-${item.quantity_on_hand}`));
+        
+        // Only process items that have changed since last check
         for (const item of items) {
-          this.handleStockAlert({
-            inventory_id: item.inventory_id,
-            product_id: item.product_id,
-            product_sku: item.sku,
-            product_name: item.name,
-            warehouse_id: item.warehouse_id,
-            current_quantity: item.quantity_on_hand,
-            reorder_point: item.reorder_point,
-            alert_type: 'low_stock',
-            priority: 'high',
-            message: `Low stock alert: ${item.name} (${item.sku}) - ${item.quantity_on_hand} remaining`
-          });
+          const itemKey = `${item.inventory_id}-${item.quantity_on_hand}`;
+          if (!lastLowStockItems.has(itemKey)) {
+            this.handleStockAlert({
+              inventory_id: item.inventory_id,
+              product_id: item.product_id,
+              product_sku: item.sku,
+              product_name: item.name,
+              warehouse_id: item.warehouse_id,
+              current_quantity: item.quantity_on_hand,
+              reorder_point: item.reorder_point,
+              alert_type: 'low_stock',
+              priority: 'high',
+              message: `Low stock alert: ${item.name} (${item.sku}) - ${item.quantity_on_hand} remaining`
+            });
+          }
         }
+        
+        lastLowStockItems = currentLowStockItems;
+        consecutiveErrors = 0;
+        
       } catch (error) {
+        consecutiveErrors++;
         console.error('Error in polling fallback:', error);
+        
+        // Exponential backoff on consecutive errors to prevent resource exhaustion
+        if (consecutiveErrors >= maxConsecutiveErrors) {
+          console.warn('Too many consecutive polling errors, increasing interval');
+          if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = setInterval(pollForChanges, basePollingInterval * 2);
+          }
+        }
       }
-    }, 30000);
+    };
+    
+    // Start polling with optimized interval - prevent duplicate intervals
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+    }
+    
+    this.pollingInterval = setInterval(pollForChanges, basePollingInterval);
+    console.log(`Inventory polling initialized with ${basePollingInterval/1000/60} minute interval`);
   }
 
   /**
@@ -408,6 +457,12 @@ class RealtimeInventoryService extends EventEmitter {
         }
       });
       this.connections.clear();
+
+      // Clear polling interval to prevent memory leaks
+      if (this.pollingInterval) {
+        clearInterval(this.pollingInterval);
+        this.pollingInterval = null;
+      }
 
       // Close database notification client
       if (this.dbNotificationClient) {

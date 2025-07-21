@@ -76,7 +76,9 @@ class SecurityMonitoringService {
       highAlerts: 0,
       mediumAlerts: 0,
       lowAlerts: 0,
-      lastScanTime: null
+      lastScanTime: null,
+      lastComprehensiveScan: null,
+      skippedScans: 0
     };
   }
 
@@ -84,7 +86,14 @@ class SecurityMonitoringService {
     try {
       // Try to connect to Redis for real-time alerting
       if (process.env.REDIS_URL) {
-        this.redis = createClient({ url: process.env.REDIS_URL });
+        const redisConfig = {
+          url: process.env.REDIS_URL,
+          // Only set password if it exists and is not empty
+          ...(process.env.REDIS_PASSWORD && process.env.REDIS_PASSWORD.trim() !== '' && {
+            password: process.env.REDIS_PASSWORD
+          }),
+        };
+        this.redis = createClient(redisConfig);
         await this.redis.connect();
         console.log('✅ Security Monitoring: Redis connected');
       }
@@ -107,25 +116,26 @@ class SecurityMonitoringService {
   }
 
   /**
-   * Start continuous monitoring for security events
+   * Start optimized continuous monitoring prioritizing API responsiveness
    */
   startContinuousMonitoring() {
-    // Real-time monitoring every 30 seconds
+    // OPTIMIZED: Reduced frequency during business hours, increased during off-peak
+    // Real-time monitoring with adaptive intervals
     setInterval(() => {
-      this.scanForSecurityThreats();
-    }, 30000);
+      this.adaptiveSecurityScan();
+    }, 60000); // Reduced from 30s to 1 minute
 
-    // Comprehensive security scan every 5 minutes
+    // Comprehensive security scan - only during off-peak hours
     setInterval(() => {
-      this.performComprehensiveScan();
-    }, 5 * 60 * 1000);
+      this.scheduleComprehensiveScan();
+    }, 15 * 60 * 1000); // Check every 15 minutes if comprehensive scan should run
 
-    // Alert cleanup every hour
+    // Alert cleanup every 2 hours (reduced frequency)
     setInterval(() => {
       this.cleanupExpiredAlerts();
-    }, 60 * 60 * 1000);
+    }, 2 * 60 * 60 * 1000);
 
-    console.log('🔍 Security monitoring started');
+    console.log('🔍 Optimized security monitoring started with API priority');
   }
 
   /**
@@ -168,7 +178,69 @@ class SecurityMonitoringService {
   }
 
   /**
-   * Scan for immediate security threats
+   * Adaptive security scan that adjusts based on system load and time
+   */
+  async adaptiveSecurityScan() {
+    try {
+      // Check system load before performing heavy operations
+      const memUsage = process.memoryUsage();
+      const memUsagePercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+      const currentHour = new Date().getHours();
+      const isBusinessHours = currentHour >= 9 && currentHour <= 18;
+      
+      // Skip scan if system is under high load during business hours
+      if (isBusinessHours && memUsagePercent > 80) {
+        console.log(`Skipping security scan due to high load (${memUsagePercent.toFixed(1)}%) during business hours`);
+        return;
+      }
+
+      const now = new Date();
+      const alerts = [];
+
+      // Always check critical security threats
+      const criticalChecks = [
+        this.checkRateLimitViolations(),
+        this.checkInjectionAttempts()
+      ];
+
+      // Add less critical checks only during off-peak hours or low load
+      if (!isBusinessHours || memUsagePercent < 60) {
+        criticalChecks.push(
+          this.checkAuthenticationFailures(),
+          this.checkSuspiciousIPActivity()
+        );
+      }
+
+      const results = await Promise.allSettled(criticalChecks);
+      
+      // Process successful results
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value.length > 0) {
+          alerts.push(...result.value);
+        } else if (result.status === 'rejected') {
+          console.error(`Security check ${index} failed:`, result.reason);
+        }
+      });
+
+      // Process alerts with throttling
+      for (const alert of alerts) {
+        await this.processAlert(alert);
+        // Add small delay between alerts during business hours
+        if (isBusinessHours && alerts.length > 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      this.securityMetrics.lastScanTime = now;
+      this.securityMetrics.totalEvents += alerts.length;
+
+    } catch (error) {
+      console.error('Error during adaptive security scan:', error);
+    }
+  }
+
+  /**
+   * Legacy method for immediate security threat scanning
    */
   async scanForSecurityThreats() {
     try {
@@ -389,23 +461,55 @@ class SecurityMonitoringService {
   }
 
   /**
-   * Perform comprehensive security scan
+   * Schedule comprehensive scan only during off-peak hours
+   */
+  async scheduleComprehensiveScan() {
+    const currentHour = new Date().getHours();
+    const isOffPeakHours = currentHour >= 1 && currentHour <= 5; // 1 AM to 5 AM
+    
+    if (!isOffPeakHours) {
+      return; // Skip comprehensive scan during business and evening hours
+    }
+
+    // Check if comprehensive scan was recently run (within last 4 hours)
+    const lastComprehensiveScan = this.securityMetrics.lastComprehensiveScan;
+    if (lastComprehensiveScan) {
+      const hoursSinceLastScan = (Date.now() - new Date(lastComprehensiveScan).getTime()) / (1000 * 60 * 60);
+      if (hoursSinceLastScan < 4) {
+        return; // Skip if run within last 4 hours
+      }
+    }
+
+    await this.performComprehensiveScan();
+    this.securityMetrics.lastComprehensiveScan = new Date().toISOString();
+  }
+
+  /**
+   * Perform comprehensive security scan (optimized for off-peak execution)
    */
   async performComprehensiveScan() {
     try {
-      console.log('🔍 Performing comprehensive security scan...');
+      console.log('🔍 Performing comprehensive security scan (off-peak mode)...');
       
-      // System health check
+      // Add delays between checks to prevent overwhelming the system
       await this.checkSystemHealth();
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
       
-      // Database integrity check
       await this.checkDatabaseIntegrity();
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
       
-      // File system security check
-      await this.checkFileSystemSecurity();
+      // Skip file system and network checks if memory usage is high
+      const memUsage = process.memoryUsage();
+      const memUsagePercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
       
-      // Network security check
-      await this.checkNetworkSecurity();
+      if (memUsagePercent < 75) {
+        await this.checkFileSystemSecurity();
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        await this.checkNetworkSecurity();
+      } else {
+        console.log('Skipping file system and network checks due to high memory usage');
+      }
       
       console.log('✅ Comprehensive security scan completed');
     } catch (error) {

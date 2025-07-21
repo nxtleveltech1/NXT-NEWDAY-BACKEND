@@ -349,6 +349,9 @@ export async function recordMovement(movementData) {
       .where(eq(inventory.id, inventoryId))
       .returning();
 
+    // Clear reorder suggestions cache when inventory changes
+    clearReorderSuggestionsCache();
+
     // Trigger real-time notifications
     const result = {
       movement: movement[0],
@@ -595,41 +598,73 @@ export async function getMovements(params = {}) {
 
 // ==================== REORDER MANAGEMENT ====================
 
+// Cache for reorder suggestions to prevent excessive database queries
+let reorderSuggestionsCache = null;
+let lastReorderCacheTime = 0;
+const REORDER_CACHE_TTL = 300000; // 5 minutes cache
+
 /**
- * Get reorder suggestions
+ * Get reorder suggestions with caching and memory optimization
  */
 export async function getReorderSuggestions() {
-  const suggestions = await db
-    .select({
-      id: inventory.id,
-      productId: inventory.productId,
-      warehouseId: inventory.warehouseId,
-      quantityOnHand: inventory.quantityOnHand,
-      quantityAvailable: inventory.quantityAvailable,
-      reorderPoint: inventory.reorderPoint,
-      reorderQuantity: inventory.reorderQuantity,
-      averageCost: inventory.averageCost,
-      productSku: products.sku,
-      productName: products.name,
-      productCategory: products.category,
-      supplierName: suppliers.companyName,
-      supplierId: products.supplierId,
-    })
-    .from(inventory)
-    .innerJoin(products, eq(inventory.productId, products.id))
-    .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
-    .where(
-      and(
-        isNotNull(inventory.reorderPoint),
-        sql`${inventory.quantityAvailable} <= ${inventory.reorderPoint}`,
-        eq(products.isActive, true)
+  const now = Date.now();
+  
+  // Return cached results if still valid
+  if (reorderSuggestionsCache && (now - lastReorderCacheTime) < REORDER_CACHE_TTL) {
+    return reorderSuggestionsCache;
+  }
+  
+  try {
+    const suggestions = await db
+      .select({
+        id: inventory.id,
+        productId: inventory.productId,
+        warehouseId: inventory.warehouseId,
+        quantityOnHand: inventory.quantityOnHand,
+        quantityAvailable: inventory.quantityAvailable,
+        reorderPoint: inventory.reorderPoint,
+        reorderQuantity: inventory.reorderQuantity,
+        averageCost: inventory.averageCost,
+        productSku: products.sku,
+        productName: products.name,
+        productCategory: products.category,
+        supplierName: suppliers.companyName,
+        supplierId: products.supplierId,
+      })
+      .from(inventory)
+      .innerJoin(products, eq(inventory.productId, products.id))
+      .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
+      .where(
+        and(
+          isNotNull(inventory.reorderPoint),
+          sql`${inventory.quantityAvailable} <= ${inventory.reorderPoint}`,
+          eq(products.isActive, true),
+          sql`${inventory.reorderPoint} > 0`
+        )
       )
-    )
-    .orderBy(
-      desc(sql`(${inventory.reorderPoint} - ${inventory.quantityAvailable})`)
-    );
+      .orderBy(
+        desc(sql`(${inventory.reorderPoint} - ${inventory.quantityAvailable})`)
+      )
+      .limit(100); // Prevent memory issues with large result sets
 
-  return suggestions;
+    // Cache the results
+    reorderSuggestionsCache = suggestions;
+    lastReorderCacheTime = now;
+    
+    return suggestions;
+  } catch (error) {
+    console.error('Error fetching reorder suggestions:', error);
+    // Return cached data if available, empty array otherwise
+    return reorderSuggestionsCache || [];
+  }
+}
+
+/**
+ * Clear reorder suggestions cache (call when inventory is updated)
+ */
+export function clearReorderSuggestionsCache() {
+  reorderSuggestionsCache = null;
+  lastReorderCacheTime = 0;
 }
 
 // ==================== ANALYTICS ====================

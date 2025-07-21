@@ -45,9 +45,12 @@ COPY --from=dependencies --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=build --chown=nodejs:nodejs /app/src ./src
 COPY --from=build --chown=nodejs:nodejs /app/index.js ./
 COPY --from=build --chown=nodejs:nodejs /app/package*.json ./
+COPY --from=build --chown=nodejs:nodejs /app/drizzle.config.js ./
+COPY --from=build --chown=nodejs:nodejs /app/scripts ./scripts
 
-# Copy other necessary files
+# Copy environment files
 COPY --chown=nodejs:nodejs .env.example ./
+COPY --chown=nodejs:nodejs .env* ./
 
 # Create necessary directories
 RUN mkdir -p logs uploads && \
@@ -66,6 +69,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Production environment variables
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=2048"
+ENV HOST=0.0.0.0
 
 # Use tini for proper signal handling
 ENTRYPOINT ["/sbin/tini", "--"]

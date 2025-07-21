@@ -28,6 +28,8 @@ import performanceMonitoringRoutes from "./src/routes/performance-monitoring.rou
 import { analyticsService } from "./src/services/analytics.service.js";
 import { integrationMonitoringService } from "./src/services/integration-monitoring.service.js";
 import materializedViewRefreshService from "./src/services/materialized-view-refresh.service.js";
+import queryOptimizationService from "./src/services/query-optimization.service.js";
+import backgroundServiceOrchestrator from "./src/services/background-service-orchestrator.service.js";
 
 // Import performance and security middleware
 import { performanceMiddleware } from "./src/middleware/performance.wrapper.js";
@@ -53,17 +55,14 @@ import {
 import { requestDeduplication } from "./src/middleware/request-deduplication.middleware.js";
 import cacheService from "./src/services/cache.service.js";
 import { securityConfig } from "./src/config/security.config.js";
-import rbacMiddleware, { authenticateToken as rbacAuthenticateToken, requirePermission, requireRole } from "./src/middleware/rbac.middleware.js";
+import rbacMiddleware, { authenticateToken as rbacAuthenticateToken, requirePermission, requireRole, getKey } from "./src/middleware/rbac.middleware.js";
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 4000;
 
-app.use(cors({
-  origin: 'http://localhost:3001',
-  credentials: true
-}));
+// CORS configuration is handled comprehensively below
 
 // Initialize cache service function
 async function initializeCache() {
@@ -96,7 +95,7 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3000'];
+    const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3000', 'http://localhost:3001'];
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -141,13 +140,29 @@ app.use(responseCaching(300)); // 5 minute cache TTL
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+  const orchestratorStatus = backgroundServiceOrchestrator.getStatus();
+  const memUsage = process.memoryUsage();
+  const memUsagePercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+  
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
     service: 'NXT NEW DAY Backend',
     version: '1.0.0',
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    systemLoad: {
+      memoryUsage: `${memUsagePercent.toFixed(1)}%`,
+      heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+      heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`
+    },
+    backgroundServices: orchestratorStatus
   });
+});
+
+// Background service orchestrator status endpoint
+app.get('/api/system/background-services', authenticateToken, (req, res) => {
+  const status = backgroundServiceOrchestrator.getStatus();
+  res.json(status);
 });
 
 // Configure multer for file uploads
@@ -158,38 +173,51 @@ const upload = multer({
   }
 });
 
-// Stack Auth JWKS setup
-const projectId = process.env.VITE_STACK_PROJECT_ID;
-const jwksUri = `https://api.stack-auth.com/api/v1/projects/${projectId}/.well-known/jwks.json`;
-const client = jwksClient({ jwksUri });
+// Import improved authentication system
+import { authConfig } from './src/config/auth.config.js';
 
-function getKey(header, callback) {
-  client.getSigningKey(header.kid, function (err, key) {
-    const signingKey = key && key.getPublicKey();
-    callback(null, signingKey);
-  });
+// Initialize authentication system
+let authMiddleware = null;
+
+async function initializeAuth() {
+  try {
+    await authConfig.initialize();
+    authMiddleware = authConfig.getAuthMiddleware({ bypassInDev: true });
+    console.log('✅ Authentication system ready');
+    
+    // Log authentication status for debugging
+    const authStatus = authConfig.getAuthStatus();
+    console.log('🔍 Auth Status:', {
+      mode: authStatus.authMode,
+      stackAuth: authStatus.stackAuthConfigured ? '✅' : '❌',
+      environment: authStatus.environment
+    });
+    
+  } catch (error) {
+    console.error('❌ Authentication initialization failed:', error);
+    // Fallback to development bypass in non-production
+    if (process.env.NODE_ENV !== 'production') {
+      const { devAuthBypass } = await import('./src/middleware/auth-bypass.middleware.js');
+      authMiddleware = devAuthBypass({ roles: ['admin'] });
+      console.warn('⚠️ Using emergency development bypass');
+    } else {
+      throw error;
+    }
+  }
 }
 
-// Enhanced authentication with RBAC support
+// Legacy authentication function (keeping for compatibility)
 async function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.sendStatus(401);
+  if (authMiddleware) {
+    return authMiddleware(req, res, next);
+  }
   
-  jwt.verify(token, getKey, { algorithms: ['RS256'] }, async (err, user) => {
-    if (err) return res.sendStatus(403);
-    req.user = user;
-    
-    // Load user roles and permissions for RBAC
-    try {
-      // This would typically load from database
-      req.user.roles = ['user']; // Default role
-      req.user.permissions = [];
-    } catch (error) {
-      console.error('Error loading user roles:', error);
-    }
-    
-    next();
+  // Fallback error if auth not initialized
+  return res.status(500).json({
+    success: false,
+    error: 'Authentication system not initialized',
+    code: 'AUTH_NOT_READY',
+    timestamp: new Date().toISOString()
   });
 }
 
@@ -933,23 +961,36 @@ async function startServer() {
       await cacheService.connect();
     }
 
-    // Initialize services
+    // Initialize essential services first
     await realtimeService.initialize();
     await analyticsService.initialize();
     
-    // Initialize and start materialized view refresh service
+    // Initialize background service orchestrator (handles all background services)
     try {
-      await materializedViewRefreshService.createMaterializedViews();
-      await materializedViewRefreshService.initialize();
-      console.log('Materialized view refresh service started');
+      console.log('🎯 Starting background service orchestrator with API priority optimization...');
+      await backgroundServiceOrchestrator.initialize();
+      console.log('✅ Background service orchestrator started successfully');
     } catch (error) {
-      console.error('Failed to start materialized view refresh service:', error);
-      // Continue without materialized views
+      console.error('❌ Failed to start background service orchestrator:', error);
+      console.warn('⚠️ Falling back to individual service initialization...');
+      
+      // Fallback: Initialize materialized view refresh service individually
+      try {
+        await materializedViewRefreshService.createMaterializedViews();
+        await materializedViewRefreshService.initialize();
+        console.log('Materialized view refresh service started (fallback mode)');
+      } catch (fallbackError) {
+        console.error('Failed to start materialized view refresh service (fallback):', fallbackError);
+        // Continue without materialized views
+      }
     }
     
-    // Start integration monitoring
+    // Start integration monitoring with memory-optimized settings
     console.log('Starting integration monitoring...');
-    await integrationMonitoringService.startMonitoring({ interval: 60000 });
+    await integrationMonitoringService.startMonitoring({ 
+      healthCheckInterval: 600000, // 10 minutes for memory efficiency
+      includeDetailedMetrics: false
+    });
     
     // Create HTTP server
     const server = createServer(app);
@@ -998,35 +1039,74 @@ async function startServer() {
       });
     });
 
-    // Start server
-    // Use dynamic port allocation to avoid conflicts
-    const serverInstance = server.listen(0, () => {
-      const actualPort = serverInstance.address().port;
-      console.log(`NXT Backend running on port ${actualPort}`);
-      console.log(`WebSocket server available at ws://localhost:${actualPort}/api/realtime/inventory`);
+    // Start server on configured port
+    const serverInstance = server.listen(port, () => {
+      console.log(`NXT Backend running on port ${port}`);
+      console.log(`WebSocket server available at ws://localhost:${port}/api/realtime/inventory`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     });
 
-    // Graceful shutdown
+    // Enhanced graceful shutdown with orchestrator and cache cleanup
     process.on('SIGTERM', async () => {
       console.log('SIGTERM received, shutting down gracefully');
-      integrationMonitoringService.stopMonitoring();
-      await realtimeService.cleanup();
-      server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-      });
+      
+      try {
+        // Stop background service orchestrator first
+        await backgroundServiceOrchestrator.shutdown();
+        
+        // Then stop other services
+        integrationMonitoringService.stopMonitoring();
+        await realtimeService.cleanup();
+        await cacheService.disconnect();
+        
+        server.close(() => {
+          console.log('Server closed');
+          process.exit(0);
+        });
+      } catch (error) {
+        console.error('Error during graceful shutdown:', error);
+        process.exit(1);
+      }
     });
 
     process.on('SIGINT', async () => {
       console.log('SIGINT received, shutting down gracefully');
-      integrationMonitoringService.stopMonitoring();
-      await realtimeService.cleanup();
-      server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-      });
+      
+      try {
+        // Stop background service orchestrator first
+        await backgroundServiceOrchestrator.shutdown();
+        
+        // Then stop other services
+        integrationMonitoringService.stopMonitoring();
+        await realtimeService.cleanup();
+        await cacheService.disconnect();
+        
+        server.close(() => {
+          console.log('Server closed');
+          process.exit(0);
+        });
+      } catch (error) {
+        console.error('Error during graceful shutdown:', error);
+        process.exit(1);
+      }
     });
+
+    // Memory monitoring and periodic cleanup
+    const memoryCheckInterval = setInterval(() => {
+      const memUsage = process.memoryUsage();
+      const memUsagePercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+      
+      console.log(`Memory usage: ${Math.round(memUsagePercent)}% (${Math.round(memUsage.heapUsed / 1024 / 1024)}MB / ${Math.round(memUsage.heapTotal / 1024 / 1024)}MB)`);
+      
+      // Force garbage collection if memory usage is high and GC is available
+      if (memUsagePercent > 85 && global.gc) {
+        console.log('High memory usage detected, running garbage collection');
+        global.gc();
+      }
+    }, 120000); // Check every 2 minutes
+
+    // Store interval reference for cleanup
+    global.memoryCheckInterval = memoryCheckInterval;
 
   } catch (err) {
     console.error('Failed to start server:', err);
