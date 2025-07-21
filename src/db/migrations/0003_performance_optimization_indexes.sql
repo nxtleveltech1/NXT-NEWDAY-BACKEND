@@ -4,104 +4,104 @@
 -- ==================== INVENTORY PERFORMANCE INDEXES ====================
 
 -- Composite index for inventory queries with warehouse and stock status
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_inventory_warehouse_stock_status 
-ON inventory (warehouse_id, stock_status, quantity_available) 
+CREATE INDEX IF NOT EXISTS idx_inventory_warehouse_stock_status
+ON inventory (warehouse_id, stock_status, quantity_available)
 WHERE quantity_available > 0;
 
 -- Composite index for low stock alerts
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_inventory_reorder_alerts 
-ON inventory (warehouse_id, reorder_point, quantity_available) 
+CREATE INDEX IF NOT EXISTS idx_inventory_reorder_alerts
+ON inventory (warehouse_id, reorder_point, quantity_available)
 WHERE reorder_point IS NOT NULL AND quantity_available <= reorder_point;
 
 -- Index for inventory value calculations
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_inventory_value_calculation 
-ON inventory (warehouse_id, quantity_on_hand, average_cost) 
+CREATE INDEX IF NOT EXISTS idx_inventory_value_calculation
+ON inventory (warehouse_id, quantity_on_hand, average_cost)
 WHERE quantity_on_hand > 0 AND average_cost IS NOT NULL;
 
 -- Partial index for active products only
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_products_active_sku 
-ON products (sku, name, category) 
+CREATE INDEX IF NOT EXISTS idx_products_active_sku
+ON products (sku, name, category)
 WHERE is_active = true;
 
 -- ==================== ANALYTICS PERFORMANCE INDEXES ====================
 
 -- Time-series index for movements by date range
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_inventory_movements_time_series 
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_time_series
 ON inventory_movements (created_at DESC, movement_type, product_id, warehouse_id);
 
 -- Index for movement aggregations by product
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_movements_product_aggregation 
+CREATE INDEX IF NOT EXISTS idx_movements_product_aggregation
 ON inventory_movements (product_id, movement_type, created_at DESC, quantity, unit_cost)
 WHERE quantity IS NOT NULL;
 
 -- Index for warehouse-specific movement analysis
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_movements_warehouse_analysis 
+CREATE INDEX IF NOT EXISTS idx_movements_warehouse_analysis
 ON inventory_movements (warehouse_id, created_at DESC, movement_type, total_cost)
 WHERE total_cost IS NOT NULL;
 
 -- ==================== SUPPLIER PERFORMANCE INDEXES ====================
 
 -- Supplier performance analysis index
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_suppliers_performance_analysis 
+CREATE INDEX IF NOT EXISTS idx_suppliers_performance_analysis
 ON suppliers (is_active, performance_rating DESC, lead_time_days, industry);
 
 -- Price list performance index
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_price_lists_active_supplier 
-ON price_lists (supplier_id, status, effective_date DESC, expiry_date) 
+CREATE INDEX IF NOT EXISTS idx_price_lists_active_supplier
+ON price_lists (supplier_id, status, effective_date DESC, expiry_date)
 WHERE status IN ('active', 'approved');
 
 -- Price list items with SKU lookup
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_price_list_items_sku_lookup 
+CREATE INDEX IF NOT EXISTS idx_price_list_items_sku_lookup
 ON price_list_items (sku, price_list_id, unit_price, min_quantity);
 
 -- ==================== CUSTOMER ANALYTICS INDEXES ====================
 
 -- Customer purchase history analysis
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customers_purchase_analysis 
-ON customers (created_at DESC, company_name) 
+CREATE INDEX IF NOT EXISTS idx_customers_purchase_analysis
+ON customers (created_at DESC, company_name)
 WHERE purchase_history != '[]'::jsonb;
 
 -- Purchase orders customer analysis
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_purchase_orders_customer_analysis 
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_customer_analysis
 ON purchase_orders (customer_id, order_date DESC, status, total_amount);
 
 -- Purchase order items for customer insights
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_purchase_order_items_analytics 
+CREATE INDEX IF NOT EXISTS idx_purchase_order_items_analytics
 ON purchase_order_items (product_id, created_at DESC, quantity, unit_price);
 
 -- ==================== TIME SERIES ANALYTICS INDEXES ====================
 
 -- Daily aggregates for fast dashboard queries
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_analytics_daily_date_dimension 
+CREATE INDEX IF NOT EXISTS idx_analytics_daily_date_dimension
 ON analytics_daily_aggregates (date DESC, dimension, dimension_id, sales_revenue);
 
 -- Monthly aggregates for trend analysis
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_analytics_monthly_trends 
+CREATE INDEX IF NOT EXISTS idx_analytics_monthly_trends
 ON analytics_monthly_aggregates (year DESC, month DESC, dimension, revenue_growth);
 
 -- Time series metrics for real-time dashboards
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_time_series_metrics_dashboard 
+CREATE INDEX IF NOT EXISTS idx_time_series_metrics_dashboard
 ON time_series_metrics (timestamp DESC, metric_name, dimension1, value);
 
 -- ==================== UPLOAD AND PROCESSING INDEXES ====================
 
 -- Upload history performance
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_upload_history_supplier_status 
+CREATE INDEX IF NOT EXISTS idx_upload_history_supplier_status
 ON upload_history (supplier_id, status, upload_date DESC, success_count);
 
 -- ==================== JSONB PERFORMANCE INDEXES ====================
 
 -- GIN indexes for JSONB columns for fast searches
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_inventory_metadata_gin 
+CREATE INDEX IF NOT EXISTS idx_inventory_metadata_gin
 ON inventory USING GIN (metadata);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_products_metadata_gin 
+CREATE INDEX IF NOT EXISTS idx_products_metadata_gin
 ON products USING GIN (metadata);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_suppliers_contact_details_gin 
+CREATE INDEX IF NOT EXISTS idx_suppliers_contact_details_gin
 ON suppliers USING GIN (contact_details);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customers_address_gin 
+CREATE INDEX IF NOT EXISTS idx_customers_address_gin
 ON customers USING GIN (address);
 
 -- ==================== MATERIALIZED VIEWS FOR PERFORMANCE ====================

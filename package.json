@@ -7,7 +7,8 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "node scripts/run-migrations.js",
+    "db:migrate": "cross-env DOTENV_CONFIG_PATH=./.env.production node -r dotenv/config scripts/run-migrations.js",
+    "db:migrate:sql": "drizzle-kit generate:sql",
     "db:migrate:kit": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
@@ -73,7 +74,7 @@
     "cors": "^2.8.5",
     "csv-parse": "^5.5.0",
     "dotenv": "^17.2.0",
-    "drizzle-orm": "^0.44.3",
+    "drizzle-orm": "latest",
     "express": "^4.18.2",
     "express-rate-limit": "^8.0.1",
     "express-slow-down": "^2.1.0",
@@ -96,6 +97,7 @@
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
+    "cross-env": "^7.0.3",
     "drizzle-kit": "^0.31.4",
     "jest": "^30.0.4",
     "nodemon": "^3.1.0"

@@ -45,9 +45,21 @@ CREATE TABLE IF NOT EXISTS "supplier_purchase_orders" (
 );
 
 -- Foreign key constraints
-ALTER TABLE "supplier_purchase_orders" ADD CONSTRAINT "supplier_purchase_orders_supplier_id_suppliers_id_fk" FOREIGN KEY ("supplier_id") REFERENCES "suppliers"("id") ON DELETE no action ON UPDATE no action;
-ALTER TABLE "supplier_purchase_orders" ADD CONSTRAINT "supplier_purchase_orders_price_list_id_price_lists_id_fk" FOREIGN KEY ("price_list_id") REFERENCES "price_lists"("id") ON DELETE no action ON UPDATE no action;
-ALTER TABLE "supplier_purchase_orders" ADD CONSTRAINT "supplier_purchase_orders_customer_order_id_purchase_orders_id_fk" FOREIGN KEY ("customer_order_id") REFERENCES "purchase_orders"("id") ON DELETE no action ON UPDATE no action;
+DO $$ BEGIN
+ ALTER TABLE "supplier_purchase_orders" ADD CONSTRAINT "supplier_purchase_orders_supplier_id_suppliers_id_fk" FOREIGN KEY ("supplier_id") REFERENCES "suppliers"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+DO $$ BEGIN
+ ALTER TABLE "supplier_purchase_orders" ADD CONSTRAINT "supplier_purchase_orders_price_list_id_price_lists_id_fk" FOREIGN KEY ("price_list_id") REFERENCES "price_lists"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+DO $$ BEGIN
+ ALTER TABLE "supplier_purchase_orders" ADD CONSTRAINT "supplier_purchase_orders_customer_order_id_purchase_orders_id_fk" FOREIGN KEY ("customer_order_id") REFERENCES "purchase_orders"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
 
 -- Indexes for supplier purchase orders
 CREATE INDEX IF NOT EXISTS "supplier_po_supplier_idx" ON "supplier_purchase_orders" ("supplier_id");
@@ -92,9 +104,21 @@ CREATE TABLE IF NOT EXISTS "supplier_purchase_order_items" (
 );
 
 -- Foreign key constraints for supplier purchase order items
-ALTER TABLE "supplier_purchase_order_items" ADD CONSTRAINT "supplier_purchase_order_items_supplier_purchase_order_id_supplier_purchase_orders_id_fk" FOREIGN KEY ("supplier_purchase_order_id") REFERENCES "supplier_purchase_orders"("id") ON DELETE cascade ON UPDATE no action;
-ALTER TABLE "supplier_purchase_order_items" ADD CONSTRAINT "supplier_purchase_order_items_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE no action ON UPDATE no action;
-ALTER TABLE "supplier_purchase_order_items" ADD CONSTRAINT "supplier_purchase_order_items_price_list_item_id_price_list_items_id_fk" FOREIGN KEY ("price_list_item_id") REFERENCES "price_list_items"("id") ON DELETE no action ON UPDATE no action;
+DO $$ BEGIN
+ ALTER TABLE "supplier_purchase_order_items" ADD CONSTRAINT "supplier_purchase_order_items_supplier_purchase_order_id_supplier_purchase_orders_id_fk" FOREIGN KEY ("supplier_purchase_order_id") REFERENCES "supplier_purchase_orders"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+DO $$ BEGIN
+ ALTER TABLE "supplier_purchase_order_items" ADD CONSTRAINT "supplier_purchase_order_items_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+DO $$ BEGIN
+ ALTER TABLE "supplier_purchase_order_items" ADD CONSTRAINT "supplier_purchase_order_items_price_list_item_id_price_list_items_id_fk" FOREIGN KEY ("price_list_item_id") REFERENCES "price_list_items"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
 
 -- Indexes for supplier purchase order items
 CREATE INDEX IF NOT EXISTS "supplier_po_items_order_idx" ON "supplier_purchase_order_items" ("supplier_purchase_order_id");

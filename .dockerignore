@@ -1,5 +1,9 @@
+<<<<<<< Updated upstream
 node_modules
 .git
 .dockerignore
 Dockerfile
 Dockerfile.production
+=======
+node_modules
+>>>>>>> Stashed changes

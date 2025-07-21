@@ -9,5 +9,5 @@ CREATE TABLE IF NOT EXISTS warehouses (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_warehouses_code ON warehouses(code);
-CREATE INDEX idx_warehouses_active ON warehouses(is_active);
+CREATE INDEX IF NOT EXISTS idx_warehouses_code ON warehouses(code);
+CREATE INDEX IF NOT EXISTS idx_warehouses_active ON warehouses(is_active);

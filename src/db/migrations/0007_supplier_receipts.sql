@@ -73,20 +73,40 @@ CREATE INDEX IF NOT EXISTS "po_receipt_items_sku_idx" ON "purchase_order_receipt
 CREATE INDEX IF NOT EXISTS "po_receipt_items_warehouse_idx" ON "purchase_order_receipt_items" USING btree ("warehouse_id");
 
 -- Foreign key constraints
-ALTER TABLE "purchase_order_receipts" ADD CONSTRAINT "purchase_order_receipts_supplier_purchase_order_id_supplier_purchase_orders_id_fk" 
+DO $$ BEGIN
+ ALTER TABLE "purchase_order_receipts" ADD CONSTRAINT "purchase_order_receipts_supplier_purchase_order_id_supplier_purchase_orders_id_fk"
     FOREIGN KEY ("supplier_purchase_order_id") REFERENCES "public"."supplier_purchase_orders"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
 
-ALTER TABLE "purchase_order_receipts" ADD CONSTRAINT "purchase_order_receipts_warehouse_id_warehouses_id_fk" 
+DO $$ BEGIN
+ ALTER TABLE "purchase_order_receipts" ADD CONSTRAINT "purchase_order_receipts_warehouse_id_warehouses_id_fk"
     FOREIGN KEY ("warehouse_id") REFERENCES "public"."warehouses"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
 
-ALTER TABLE "purchase_order_receipt_items" ADD CONSTRAINT "purchase_order_receipt_items_receipt_id_purchase_order_receipts_id_fk" 
+DO $$ BEGIN
+ ALTER TABLE "purchase_order_receipt_items" ADD CONSTRAINT "purchase_order_receipt_items_receipt_id_purchase_order_receipts_id_fk"
     FOREIGN KEY ("receipt_id") REFERENCES "public"."purchase_order_receipts"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
 
-ALTER TABLE "purchase_order_receipt_items" ADD CONSTRAINT "purchase_order_receipt_items_supplier_purchase_order_item_id_supplier_purchase_order_items_id_fk" 
+DO $$ BEGIN
+ ALTER TABLE "purchase_order_receipt_items" ADD CONSTRAINT "purchase_order_receipt_items_supplier_purchase_order_item_id_supplier_purchase_order_items_id_fk"
     FOREIGN KEY ("supplier_purchase_order_item_id") REFERENCES "public"."supplier_purchase_order_items"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
 
-ALTER TABLE "purchase_order_receipt_items" ADD CONSTRAINT "purchase_order_receipt_items_warehouse_id_warehouses_id_fk" 
+DO $$ BEGIN
+ ALTER TABLE "purchase_order_receipt_items" ADD CONSTRAINT "purchase_order_receipt_items_warehouse_id_warehouses_id_fk"
     FOREIGN KEY ("warehouse_id") REFERENCES "public"."warehouses"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
 
 -- ==================== TRIGGERS FOR AUDIT TRAIL ====================
 

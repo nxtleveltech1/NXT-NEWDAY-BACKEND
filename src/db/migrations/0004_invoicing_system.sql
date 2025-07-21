@@ -7,37 +7,33 @@
 CREATE TABLE IF NOT EXISTS purchase_orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_number VARCHAR(100) UNIQUE NOT NULL,
-    supplier_id UUID NOT NULL REFERENCES suppliers(id),
-    customer_id UUID REFERENCES customers(id),
-    
-    -- Order details
-    status VARCHAR(50) DEFAULT 'draft' NOT NULL CHECK (status IN ('draft', 'pending', 'approved', 'shipped', 'received', 'cancelled')),
-    order_date TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    expected_delivery_date TIMESTAMPTZ,
-    actual_delivery_date TIMESTAMPTZ,
-    
-    -- Financial information
-    subtotal DECIMAL(12,2) DEFAULT 0 NOT NULL,
-    tax_amount DECIMAL(12,2) DEFAULT 0 NOT NULL,
-    shipping_cost DECIMAL(12,2) DEFAULT 0 NOT NULL,
-    discount_amount DECIMAL(12,2) DEFAULT 0 NOT NULL,
-    total_amount DECIMAL(12,2) DEFAULT 0 NOT NULL,
-    
-    -- Addresses
-    billing_address JSONB DEFAULT '{}' NOT NULL,
-    shipping_address JSONB DEFAULT '{}' NOT NULL,
-    
-    -- Notes and metadata
-    notes TEXT,
-    internal_notes TEXT,
-    metadata JSONB DEFAULT '{}' NOT NULL,
-    
-    -- Audit fields
-    created_by UUID,
-    updated_by UUID,
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    customer_id UUID REFERENCES customers(id)
 );
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_id UUID NOT NULL;
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'draft' NOT NULL CHECK (status IN ('draft', 'pending', 'approved', 'shipped', 'received', 'cancelled'));
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS order_date TIMESTAMPTZ DEFAULT NOW() NOT NULL;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS expected_delivery_date TIMESTAMPTZ;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS actual_delivery_date TIMESTAMPTZ;
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS subtotal DECIMAL(12,2) DEFAULT 0 NOT NULL;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS tax_amount DECIMAL(12,2) DEFAULT 0 NOT NULL;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS shipping_cost DECIMAL(12,2) DEFAULT 0 NOT NULL;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS discount_amount DECIMAL(12,2) DEFAULT 0 NOT NULL;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS total_amount DECIMAL(12,2) DEFAULT 0 NOT NULL;
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS billing_address JSONB DEFAULT '{}' NOT NULL;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS shipping_address JSONB DEFAULT '{}' NOT NULL;
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS internal_notes TEXT;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}' NOT NULL;
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS created_by UUID;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS updated_by UUID;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL;
 
 -- Create Purchase Order Items table
 CREATE TABLE IF NOT EXISTS purchase_order_items (
@@ -272,48 +268,3 @@ CREATE TRIGGER invoice_status_update_trigger
     EXECUTE FUNCTION update_invoice_status();
 
 -- Insert sample data (optional - remove for production)
--- Sample Purchase Order
-INSERT INTO purchase_orders (
-    order_number, 
-    supplier_id, 
-    status, 
-    subtotal, 
-    total_amount,
-    notes
-) 
-SELECT 
-    'PO-2025-000001',
-    id,
-    'received',
-    1500.00,
-    1500.00,
-    'Sample purchase order for testing'
-FROM suppliers 
-LIMIT 1
-ON CONFLICT (order_number) DO NOTHING;
-
--- Sample Invoice
-INSERT INTO invoices (
-    invoice_number,
-    supplier_id,
-    invoice_type,
-    status,
-    due_date,
-    subtotal,
-    total_amount,
-    balance_amount,
-    notes
-)
-SELECT 
-    'INV-2025-000001',
-    id,
-    'purchase',
-    'pending',
-    NOW() + INTERVAL '30 days',
-    1500.00,
-    1500.00,
-    1500.00,
-    'Sample invoice for testing'
-FROM suppliers 
-LIMIT 1
-ON CONFLICT (invoice_number) DO NOTHING;

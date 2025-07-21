@@ -1,7 +1,7 @@
 -- Migration: Create dedicated purchase orders and purchase order items tables
 -- for better purchase history tracking
 
-CREATE TABLE "purchase_orders" (
+CREATE TABLE IF NOT EXISTS "purchase_orders" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"order_number" varchar(100) NOT NULL,
 	"customer_id" uuid NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE "purchase_orders" (
 
 --> statement-breakpoint
 
-CREATE TABLE "purchase_order_items" (
+CREATE TABLE IF NOT EXISTS "purchase_order_items" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"purchase_order_id" uuid NOT NULL,
 	"product_id" uuid NOT NULL,
@@ -56,31 +56,43 @@ CREATE TABLE "purchase_order_items" (
 --> statement-breakpoint
 
 -- Add foreign key constraints
-ALTER TABLE "purchase_orders" ADD CONSTRAINT "purchase_orders_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE no action ON UPDATE no action;
+DO $$ BEGIN
+ ALTER TABLE "purchase_orders" ADD CONSTRAINT "purchase_orders_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
 
 --> statement-breakpoint
 
-ALTER TABLE "purchase_order_items" ADD CONSTRAINT "purchase_order_items_purchase_order_id_purchase_orders_id_fk" FOREIGN KEY ("purchase_order_id") REFERENCES "public"."purchase_orders"("id") ON DELETE cascade ON UPDATE no action;
+DO $$ BEGIN
+ ALTER TABLE "purchase_order_items" ADD CONSTRAINT "purchase_order_items_purchase_order_id_purchase_orders_id_fk" FOREIGN KEY ("purchase_order_id") REFERENCES "public"."purchase_orders"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
 
 --> statement-breakpoint
 
-ALTER TABLE "purchase_order_items" ADD CONSTRAINT "purchase_order_items_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE no action ON UPDATE no action;
+DO $$ BEGIN
+ ALTER TABLE "purchase_order_items" ADD CONSTRAINT "purchase_order_items_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
 
 --> statement-breakpoint
 
 -- Create indexes for performance
-CREATE INDEX "purchase_orders_customer_idx" ON "purchase_orders" USING btree ("customer_id");
-CREATE INDEX "purchase_orders_order_date_idx" ON "purchase_orders" USING btree ("order_date");
-CREATE INDEX "purchase_orders_status_idx" ON "purchase_orders" USING btree ("status");
-CREATE INDEX "purchase_orders_payment_status_idx" ON "purchase_orders" USING btree ("payment_status");
-CREATE INDEX "purchase_orders_order_number_idx" ON "purchase_orders" USING btree ("order_number");
-CREATE INDEX "purchase_orders_reference_number_idx" ON "purchase_orders" USING btree ("reference_number");
-CREATE INDEX "purchase_orders_created_at_idx" ON "purchase_orders" USING btree ("created_at");
+CREATE INDEX IF NOT EXISTS "purchase_orders_customer_idx" ON "purchase_orders" USING btree ("customer_id");
+CREATE INDEX IF NOT EXISTS "purchase_orders_order_date_idx" ON "purchase_orders" USING btree ("order_date");
+CREATE INDEX IF NOT EXISTS "purchase_orders_status_idx" ON "purchase_orders" USING btree ("status");
+CREATE INDEX IF NOT EXISTS "purchase_orders_payment_status_idx" ON "purchase_orders" USING btree ("payment_status");
+CREATE INDEX IF NOT EXISTS "purchase_orders_order_number_idx" ON "purchase_orders" USING btree ("order_number");
+CREATE INDEX IF NOT EXISTS "purchase_orders_reference_number_idx" ON "purchase_orders" USING btree ("reference_number");
+CREATE INDEX IF NOT EXISTS "purchase_orders_created_at_idx" ON "purchase_orders" USING btree ("created_at");
 
-CREATE INDEX "purchase_order_items_order_idx" ON "purchase_order_items" USING btree ("purchase_order_id");
-CREATE INDEX "purchase_order_items_product_idx" ON "purchase_order_items" USING btree ("product_id");
-CREATE INDEX "purchase_order_items_sku_idx" ON "purchase_order_items" USING btree ("sku");
+CREATE INDEX IF NOT EXISTS "purchase_order_items_order_idx" ON "purchase_order_items" USING btree ("purchase_order_id");
+CREATE INDEX IF NOT EXISTS "purchase_order_items_product_idx" ON "purchase_order_items" USING btree ("product_id");
+CREATE INDEX IF NOT EXISTS "purchase_order_items_sku_idx" ON "purchase_order_items" USING btree ("sku");
 
 -- Create search indexes for customer purchase history queries
-CREATE INDEX "purchase_orders_customer_date_idx" ON "purchase_orders" USING btree ("customer_id", "order_date");
-CREATE INDEX "purchase_orders_customer_status_idx" ON "purchase_orders" USING btree ("customer_id", "status");
+CREATE INDEX IF NOT EXISTS "purchase_orders_customer_date_idx" ON "purchase_orders" USING btree ("customer_id", "order_date");
+CREATE INDEX IF NOT EXISTS "purchase_orders_customer_status_idx" ON "purchase_orders" USING btree ("customer_id", "status");

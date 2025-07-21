@@ -1,10 +1,9 @@
-import { defineConfig } from 'drizzle-kit';
 import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
 
-export default defineConfig({
+export default {
   // Schema location
   schema: './src/db/schema.js',
   
@@ -26,6 +25,6 @@ export default defineConfig({
   // Migration settings
   migrations: {
     table: '__drizzle_migrations', // Table to track migrations
-    schema: 'public',
-  },
-});
+    schema: 'public'
+  }
+};
