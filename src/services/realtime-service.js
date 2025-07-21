@@ -339,7 +339,8 @@ class RealtimeInventoryService extends EventEmitter {
             AND i.reorder_point > 0
         `);
 
-        for (const item of (lowStockItems || [])) {
+        const items = Array.isArray(lowStockItems) ? lowStockItems : [];
+        for (const item of items) {
           this.handleStockAlert({
             inventory_id: item.inventory_id,
             product_id: item.product_id,

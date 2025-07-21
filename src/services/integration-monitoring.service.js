@@ -53,6 +53,9 @@ export async function performSystemHealthCheck(options = {}) {
     // Check integration workflows
     healthCheck.components.workflows = await checkWorkflowHealth();
     
+    // Check system health
+    healthCheck.components.system = await checkSystemHealth();
+    
     // Performance metrics
     if (includeDetailedMetrics) {
       healthCheck.metrics = await collectPerformanceMetrics(performanceThresholds);
@@ -123,8 +126,8 @@ async function checkDatabaseHealth() {
   try {
     const startTime = Date.now();
     
-    // Simple connectivity test
-    await db.select({ count: sql`1` }).limit(1);
+    // Simple connectivity test - fixed Drizzle ORM syntax
+    await db.select({ count: sql`1` }).from(timeSeriesMetrics).limit(1);
     
     health.responseTime = Date.now() - startTime;
 
@@ -553,6 +556,10 @@ async function collectPerformanceMetrics(thresholds) {
     const businessMetrics = await collectBusinessMetrics();
     metrics.business = businessMetrics;
 
+    // System memory metrics
+    const memoryMetrics = await collectMemoryMetrics();
+    metrics.memory = memoryMetrics;
+
     // Record metrics in time series
     await recordPerformanceMetrics(metrics);
 
@@ -701,6 +708,62 @@ async function collectBusinessMetrics() {
     console.error('Error collecting business metrics:', error);
     return {};
   }
+}
+
+/**
+ * Collect system memory metrics
+ * @returns {Object} Memory metrics
+ */
+async function collectMemoryMetrics() {
+  try {
+    const memoryUsage = process.memoryUsage();
+    return {
+      rss: memoryUsage.rss,
+      heapTotal: memoryUsage.heapTotal,
+      heapUsed: memoryUsage.heapUsed,
+      external: memoryUsage.external,
+      arrayBuffers: memoryUsage.arrayBuffers
+    };
+  } catch (error) {
+    console.error('Error collecting memory metrics:', error);
+    return {};
+  }
+}
+
+/**
+ * Check system health (memory usage)
+ * @returns {Object} System health status
+ */
+async function checkSystemHealth() {
+  const health = {
+    status: 'healthy',
+    metrics: {},
+    issues: [],
+    recommendations: []
+  };
+
+  try {
+    health.metrics = await collectMemoryMetrics();
+    
+    // Check against thresholds
+    const thresholds = getDefaultThresholds().memory;
+    const memoryUsagePercent = (health.metrics.rss / thresholds.rssBytes) * 100;
+    
+    if (memoryUsagePercent > thresholds.usagePercent) {
+      health.status = 'critical';
+      health.issues.push(`Memory usage critical: ${memoryUsagePercent.toFixed(2)}% of threshold`);
+      health.recommendations.push('Investigate memory leaks or optimize application memory usage');
+    } else if (memoryUsagePercent > thresholds.usagePercent * 0.8) {
+      health.status = 'warning';
+      health.issues.push(`Memory usage high: ${memoryUsagePercent.toFixed(2)}% of threshold`);
+    }
+  } catch (error) {
+    health.status = 'critical';
+    health.issues.push(`System health check error: ${error.message}`);
+    console.error('System health check failed:', error);
+  }
+
+  return health;
 }
 
 // ==================== ERROR RECOVERY ====================
@@ -955,6 +1018,10 @@ function getDefaultThresholds() {
     business: {
       dailyOrders: 10,
       inventoryMovements: 50
+    },
+    memory: {
+      usagePercent: 90, // %
+      rssBytes: 1073741824 // 1GB in bytes
     }
   };
 }
