@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import multer from "multer";
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
-import { testConnection } from "./src/config/database.js";
+import { testConnection, closePool } from "./src/config/database.js";
 import * as supplierQueries from "./src/db/supplier-queries.js";
 import * as priceListQueries from "./src/db/price-list-queries.js";
 import * as inventoryQueries from "./src/db/inventory-queries.js";
@@ -1059,6 +1059,9 @@ async function startServer() {
         await realtimeService.cleanup();
         await cacheService.disconnect();
         
+        // Close database pool
+        await closePool();
+        
         server.close(() => {
           console.log('Server closed');
           process.exit(0);
@@ -1080,6 +1083,9 @@ async function startServer() {
         integrationMonitoringService.stopMonitoring();
         await realtimeService.cleanup();
         await cacheService.disconnect();
+        
+        // Close database pool
+        await closePool();
         
         server.close(() => {
           console.log('Server closed');

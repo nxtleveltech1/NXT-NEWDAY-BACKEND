@@ -12,7 +12,6 @@ class NotificationService extends EventEmitter {
     };
 
     this.channels = {
-    codex/optimize-backend-and-routing-configuration
       email: sanitize(process.env.EMAIL_SERVICE_URL),
       slack: sanitize(process.env.SLACK_WEBHOOK_URL),
       webhook: sanitize(process.env.WEBHOOK_URL)

@@ -1,5 +1,4 @@
 node_modules
-.git
-.dockerignore
-Dockerfile
-Dockerfile.production
+.env
+logs
+backups
