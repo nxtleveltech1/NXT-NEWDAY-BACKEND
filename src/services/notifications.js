@@ -9,7 +9,7 @@ class NotificationService extends EventEmitter {
     super();
     this.channels = {
       email: process.env.EMAIL_SERVICE_URL,
-      slack: process.env.SLACK_WEBHOOK_URL,
+      slack: this.sanitizeWebhookUrl(process.env.SLACK_WEBHOOK_URL),
       webhook: process.env.WEBHOOK_URL
     };
 
@@ -25,6 +25,22 @@ class NotificationService extends EventEmitter {
       criticalInventory: parseInt(process.env.CRITICAL_INVENTORY_THRESHOLD) || 10,
       longLeadTime: parseInt(process.env.LONG_LEAD_TIME_THRESHOLD) || 30
     };
+  }
+
+  /**
+   * Validate and normalize Slack webhook URL
+   * Returns null if the URL is missing or clearly a placeholder
+   */
+  sanitizeWebhookUrl(url) {
+    if (!url || /\$\{.+\}/.test(url)) {
+      return null;
+    }
+    try {
+      return new URL(url).toString();
+    } catch (err) {
+      console.warn('Invalid Slack webhook URL provided');
+      return null;
+    }
   }
 
   // ==================== PURCHASE ORDER NOTIFICATIONS ====================
