@@ -7,10 +7,14 @@ import EventEmitter from 'events';
 class NotificationService extends EventEmitter {
   constructor() {
     super();
+    const sanitize = (val) => {
+      return typeof val === 'string' && /^\$\{.+\}$/.test(val) ? null : val;
+    };
+
     this.channels = {
-      email: process.env.EMAIL_SERVICE_URL,
-      slack: process.env.SLACK_WEBHOOK_URL,
-      webhook: process.env.WEBHOOK_URL
+      email: sanitize(process.env.EMAIL_SERVICE_URL),
+      slack: sanitize(process.env.SLACK_WEBHOOK_URL),
+      webhook: sanitize(process.env.WEBHOOK_URL)
     };
 
     this.contacts = {

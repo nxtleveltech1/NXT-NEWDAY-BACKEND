@@ -8,11 +8,15 @@ import path from 'path';
 
 export class NotificationService {
   constructor() {
+    const sanitize = (val) => {
+      return typeof val === 'string' && /^\$\{.+\}$/.test(val) ? null : val;
+    };
+
     this.channels = {
-      slack: process.env.SLACK_WEBHOOK_URL,
-      email: process.env.EMAIL_SERVICE_URL,
-      sms: process.env.SMS_SERVICE_URL,
-      pagerduty: process.env.PAGERDUTY_INTEGRATION_KEY
+      slack: sanitize(process.env.SLACK_WEBHOOK_URL),
+      email: sanitize(process.env.EMAIL_SERVICE_URL),
+      sms: sanitize(process.env.SMS_SERVICE_URL),
+      pagerduty: sanitize(process.env.PAGERDUTY_INTEGRATION_KEY)
     };
 
     this.contacts = {
