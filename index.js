@@ -25,6 +25,7 @@ import purchaseOrderRoutes from "./src/routes/purchase-orders.routes.js";
 import supplyChainIntegrationRoutes from "./src/routes/supply-chain-integration.routes.js";
 import invoiceRoutes from "./src/routes/invoice.routes.js";
 import performanceMonitoringRoutes from "./src/routes/performance-monitoring.routes.js";
+import authRoutes from "./src/routes/auth.routes.js";
 import { analyticsService } from "./src/services/analytics.service.js";
 import { integrationMonitoringService } from "./src/services/integration-monitoring.service.js";
 import materializedViewRefreshService from "./src/services/materialized-view-refresh.service.js";
@@ -34,7 +35,7 @@ import backgroundServiceOrchestrator from "./src/services/background-service-orc
 // Import performance and security middleware
 import { performanceMiddleware } from "./src/middleware/performance.wrapper.js";
 import { securityMiddleware } from "./src/middleware/security.wrapper.js";
-import { 
+import {
   performanceMonitoring,
   compressionMiddleware,
   responseCaching,
@@ -43,7 +44,7 @@ import {
   queryOptimization,
   performanceErrorHandler
 } from "./src/middleware/performance.middleware.js";
-import { 
+import {
   securityHeaders,
   advancedRateLimiting,
   progressiveSlowdown,
@@ -55,6 +56,7 @@ import {
 import { requestDeduplication } from "./src/middleware/request-deduplication.middleware.js";
 import cacheService from "./src/services/cache.service.js";
 import { securityConfig } from "./src/config/security.config.js";
+import { protect } from "./src/middleware/auth.middleware.js";
 import rbacMiddleware, { authenticateToken as rbacAuthenticateToken, requirePermission, requireRole, getKey } from "./src/middleware/rbac.middleware.js";
 
 dotenv.config();
@@ -223,25 +225,28 @@ async function authenticateToken(req, res, next) {
 
 
 // Mount supplier routes with authentication
-app.use("/api/suppliers", authenticateToken, supplierRoutes);
+app.use("/api/suppliers", protect, supplierRoutes);
 
 // Mount customer routes with authentication
-app.use("/api/customers", authenticateToken, customerRoutes);
+app.use("/api/customers", protect, customerRoutes);
 
 // Mount supplier purchase order routes with authentication
-app.use("/api/supplier-purchase-orders", authenticateToken, supplierPurchaseOrderRoutes);
+app.use("/api/supplier-purchase-orders", protect, supplierPurchaseOrderRoutes);
 
 // Mount purchase order routes with authentication
-app.use("/api/purchase-orders", authenticateToken, purchaseOrderRoutes);
+app.use("/api/purchase-orders", protect, purchaseOrderRoutes);
 
 // Mount supply chain integration routes with authentication
-app.use("/api/supply-chain", authenticateToken, supplyChainIntegrationRoutes);
+app.use("/api/supply-chain", protect, supplyChainIntegrationRoutes);
 
 // Mount invoice routes with authentication
-app.use("/api/invoices", authenticateToken, invoiceRoutes);
+app.use("/api/invoices", protect, invoiceRoutes);
 
 // Mount performance monitoring routes with authentication
-app.use("/api/monitoring", authenticateToken, performanceMonitoringRoutes);
+app.use("/api/monitoring", protect, performanceMonitoringRoutes);
+
+// Mount auth routes
+app.use("/api/auth", authRoutes);
 
 // Legacy price list routes (will be deprecated in favor of supplier-scoped routes)
 // These are kept for backward compatibility but new implementations should use /api/suppliers/:id/price-lists
