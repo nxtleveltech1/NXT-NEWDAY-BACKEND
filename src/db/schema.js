@@ -109,6 +109,7 @@ export const suppliers = pgTable('suppliers', {
 // Products table
 export const products = pgTable('products', {
   id: uuid('id').primaryKey().defaultRandom(),
+  externalId: integer('external_id').unique(),
   sku: varchar('sku', { length: 100 }).unique().notNull(),
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
@@ -126,6 +127,21 @@ export const products = pgTable('products', {
   categoryIdx: index('product_category_idx').on(table.category),
   supplierIdx: index('product_supplier_idx').on(table.supplierId),
   activeIdx: index('product_active_idx').on(table.isActive),
+  externalIdIdx: index('product_external_id_idx').on(table.externalId),
+}));
+
+// ==================== WAREHOUSE MANAGEMENT ====================
+
+export const warehouses = pgTable('warehouses', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  code: varchar('code', { length: 50 }).unique().notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  address: jsonb('address').default(sql`'{}'::jsonb`),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  codeIdx: index('warehouse_code_idx').on(table.code),
 }));
 
 // ==================== INVENTORY MANAGEMENT ====================

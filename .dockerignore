@@ -1,8 +1,12 @@
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 node_modules
 .env
 logs
 backups
+=======
+node_modules
+>>>>>>> Stashed changes
 =======
 node_modules
 >>>>>>> Stashed changes
