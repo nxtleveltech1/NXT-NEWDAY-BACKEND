@@ -1,5 +1,5 @@
 import { sql, eq, and, desc, gte, lte, avg, sum, count, min, max } from 'drizzle-orm';
-import { db } from '../db/index.js';
+import { db } from '../config/database.js';
 import { timeSeriesMetrics, timeSeriesEvents } from '../db/schema.js';
 import cacheService from './cache.service.js';
 import { performance } from 'perf_hooks';

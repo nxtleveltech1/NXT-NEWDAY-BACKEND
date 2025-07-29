@@ -1,5 +1,5 @@
 import { eq, and, or, desc, asc, sql, gte, lte, isNull, isNotNull, gt, lt, between } from 'drizzle-orm';
-import { db } from './index.js';
+import { db } from '../config/database.js';
 import { inventory, inventoryMovements, products, suppliers } from './schema.js';
 
 // ==================== INVENTORY TURNOVER CALCULATIONS ====================

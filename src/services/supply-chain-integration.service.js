@@ -8,7 +8,7 @@
  * - Supply chain analytics and monitoring
  */
 
-import { db } from '../db/index.js';
+import { db } from '../config/database.js';
 import { 
   suppliers, 
   priceLists, 

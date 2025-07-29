@@ -1,5 +1,5 @@
 import { RateLimiterRedis, RateLimiterMemory } from 'rate-limiter-flexible';
-import { db } from '../db/index.js';
+import { db } from '../config/database.js';
 import { timeSeriesMetrics } from '../db/schema.js';
 import { createClient } from 'redis';
 

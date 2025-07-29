@@ -10,7 +10,7 @@ import {
   inventoryMovements
 } from './schema.js';
 import { eq, and, desc, sql, inArray, gte, lte, isNull, count, sum } from 'drizzle-orm';
-import { db } from './index.js';
+import { db } from '../config/database.js';
 
 /**
  * Supplier Purchase Order Management Queries

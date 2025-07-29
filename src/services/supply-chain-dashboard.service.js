@@ -5,7 +5,7 @@
  * predictive analytics, and export functionality for supply chain operations.
  */
 
-import { db } from '../db/index.js';
+import { db } from '../config/database.js';
 import { 
   suppliers, 
   priceLists, 

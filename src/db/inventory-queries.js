@@ -1,5 +1,5 @@
 import { eq, and, or, desc, asc, sql, gte, lte, isNull, isNotNull } from 'drizzle-orm';
-import { db } from './index.js';
+import { db } from '../config/database.js';
 import { inventory, inventoryMovements, products, suppliers } from './schema.js';
 import { realtimeService } from '../services/realtime-service.js';
 

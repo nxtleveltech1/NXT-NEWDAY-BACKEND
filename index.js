@@ -161,6 +161,14 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Simple test endpoint
+app.get('/test', (req, res) => {
+  res.status(200).json({
+    message: 'Backend is working!',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Background service orchestrator status endpoint
 app.get('/api/system/background-services', authenticateToken, (req, res) => {
   const status = backgroundServiceOrchestrator.getStatus();
@@ -954,6 +962,9 @@ async function startServer() {
     // Initialize services
     await initializeCache();
     
+    // Initialize authentication system
+    await initializeAuth();
+    
     // Initialize security configuration
     if (securityConfig && securityConfig.initialize) {
       await securityConfig.initialize();
@@ -1000,7 +1011,8 @@ async function startServer() {
     // Create HTTP server
     const server = createServer(app);
     
-    // Setup WebSocket server
+    // Setup WebSocket server - TEMPORARILY DISABLED
+    /*
     const wss = new WebSocketServer({ 
       server,
       path: '/api/realtime/inventory'
@@ -1043,6 +1055,7 @@ async function startServer() {
         }));
       });
     });
+    */
 
     // Start server on configured port
     const serverInstance = server.listen(port, () => {

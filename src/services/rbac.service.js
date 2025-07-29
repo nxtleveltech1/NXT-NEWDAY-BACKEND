@@ -1,4 +1,4 @@
-import { db } from '../db/index.js';
+import { db } from '../config/database.js';
 import { roles, permissions, rolePermissions, userRoles } from '../db/schema.js';
 import { eq, sql } from 'drizzle-orm';
 

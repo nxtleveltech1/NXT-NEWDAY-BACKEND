@@ -2,7 +2,7 @@ import { performance } from 'perf_hooks';
 import rateLimit from 'express-rate-limit';
 import compression from 'compression';
 import { timeSeriesMetrics } from '../db/schema.js';
-import { db } from '../db/index.js';
+import { db } from '../config/database.js';
 import optimizedQueryService from '../services/optimized-query.service.js';
 
 /**

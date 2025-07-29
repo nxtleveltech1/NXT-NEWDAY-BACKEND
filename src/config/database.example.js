@@ -7,7 +7,7 @@ import { sql } from 'drizzle-orm';
 async function checkConnection() {
   const isConnected = await testConnection();
   if (isConnected) {
-    console.log('Successfully connected to Neon database');
+    console.log('Successfully connected to PostgreSQL database');
   } else {
     console.error('Failed to connect to database');
   }

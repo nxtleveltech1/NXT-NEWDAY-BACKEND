@@ -14,7 +14,7 @@ import express from 'express';
 import { supplyChainIntegrationService } from '../services/supply-chain-integration.service.js';
 import integrationMonitoringService from '../services/integration-monitoring.service.js';
 import { workflowAutomationService } from '../services/workflow-automation.service.js';
-import { db } from '../db/index.js';
+import { db } from '../config/database.js';
 import { 
   priceLists, 
   suppliers, 

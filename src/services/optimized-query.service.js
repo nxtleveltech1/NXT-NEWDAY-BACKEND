@@ -1,5 +1,5 @@
 import { sql, eq, and, or, desc, asc, gte, lte, isNotNull, count, sum, avg } from 'drizzle-orm';
-import { db } from '../db/index.js';
+import { db } from '../config/database.js';
 import { 
   inventory, 
   inventoryMovements, 

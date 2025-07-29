@@ -15,8 +15,8 @@ export const protect = async (req, res, next) => {
   }
 
   try {
-    const decoded = await auth.sessions.verify({ token });
-    req.user = await auth.users.get({ userId: decoded.userId });
+    const decoded = auth.verifyToken(token);
+    req.user = { id: decoded.userId }; // Simplified user object
     next();
   } catch (err) {
     return res.status(401).json({ success: false, error: 'Not authorized to access this route' });

@@ -1,5 +1,5 @@
 import { eq, desc, asc, and, or, gte, lte, sql, count, sum } from 'drizzle-orm';
-import { db } from './index.js';
+import { db } from '../config/database.js';
 import { invoices, invoiceItems, payments, purchaseOrders, purchaseOrderItems, suppliers, customers, products } from './schema.js';
 
 // ==================== INVOICE CRUD OPERATIONS ====================

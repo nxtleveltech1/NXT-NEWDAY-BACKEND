@@ -1,8 +1,7 @@
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import { migrate } from 'drizzle-orm/neon-serverless/migrator';
-import { Pool, neonConfig } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { Pool } from 'pg';
 import dotenv from 'dotenv';
-import ws from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -11,11 +10,6 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-// Configure WebSocket for local development
-if (process.env.NODE_ENV !== 'production') {
-  neonConfig.webSocketConstructor = ws;
-}
-
 const runMigrations = async () => {
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is not defined in environment variables');
@@ -23,13 +17,15 @@ const runMigrations = async () => {
 
   const pool = new Pool({ 
     connectionString: process.env.DATABASE_URL,
-    max: 1
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
   });
 
   try {
     const db = drizzle(pool);
     
-    console.log('🚀 Starting database migrations with Neon...');
+    console.log('🚀 Starting database migrations with PostgreSQL...');
     console.log(`📁 Migrations folder: ${path.join(__dirname, '../src/db/migrations')}`);
     
     await migrate(db, { 

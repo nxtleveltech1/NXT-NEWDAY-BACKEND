@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { db } from './index.js';
+import { db } from '../config/database.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';

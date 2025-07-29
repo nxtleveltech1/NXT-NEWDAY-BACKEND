@@ -68,9 +68,6 @@
     "monitoring:dashboard": "node -e \"import('./src/services/security-monitoring.service.js').then(m => console.log(JSON.stringify(m.securityMonitoringService.getSecurityDashboard(), null, 2)))\""
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.1",
-    "@stackframe/js": "^2.8.22",
-    "@stackframe/stack": "^2.8.21",
     "argon2": "^0.43.1",
     "bcrypt": "^6.0.0",
     "compression": "^1.8.1",

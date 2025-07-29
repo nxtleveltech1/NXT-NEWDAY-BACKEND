@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
-import { db } from '../db/index.js';
+import { db } from '../config/database.js';
 import { timeSeriesMetrics, users, userRoles, roles, rolePermissions, permissions } from '../db/schema.js';
 import { eq, and, inArray } from 'drizzle-orm';
 

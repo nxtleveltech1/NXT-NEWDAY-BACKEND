@@ -1,8 +1,8 @@
 # Backend Dockerfile
 FROM node:20-alpine
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
+# Install build dependencies and curl for health checks
+RUN apk add --no-cache python3 make g++ curl
 
 WORKDIR /app
 
@@ -24,9 +24,9 @@ ENV NODE_ENV=production
 # Expose port
 EXPOSE 4000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:4000/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"
+# Health check - use curl instead of node for better reliability
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:4000/health || exit 1
 
-# Start the application
-CMD ["node", "--max-old-space-size=2048", "--expose-gc", "index.js"]
+# Start the application using cluster.js as defined in package.json
+CMD ["node", "--max-old-space-size=2048", "--expose-gc", "cluster.js"]

@@ -1,41 +1,60 @@
-console.log('📊 Database Migration Validation');
-console.log('================================\n');
+import dotenv from 'dotenv';
+import { db, sql } from '../src/config/database.js';
 
-const expectedTables = [
-  'users',
-  'customers', 
-  'suppliers',
-  'products',
-  'inventory',
-  'purchase_orders',
-  'purchase_order_items',
-  'supplier_purchase_orders',
-  'supplier_purchase_order_items',
-  'invoices',
-  'invoice_items',
-  'warehouses',
-  'supplier_receipts',
-  'supplier_receipt_items',
-  'price_lists',
-  'price_list_items',
-  'upload_history'
-];
+dotenv.config();
 
-console.log('Expected tables after migrations:');
-expectedTables.forEach(table => {
-  console.log(`  - ${table}`);
-});
+async function checkTables() {
+  try {
+    // Get all tables
+    const result = await db.execute(sql`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      ORDER BY table_name
+    `);
+    
+    console.log('\n📊 Database Tables Found:');
+    console.log('========================');
+    
+    if (result.rows.length === 0) {
+      console.log('❌ No tables found! Migrations may not have been run.');
+    } else {
+      result.rows.forEach(row => {
+        console.log(`✅ ${row.table_name}`);
+      });
+      console.log(`\nTotal tables: ${result.rows.length}`);
+    }
+    
+    // Check if drizzle migration table exists
+    const migrationCheck = await db.execute(sql`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = '__drizzle_migrations'
+      )
+    `);
+    
+    if (migrationCheck.rows[0]?.exists) {
+      // Get migration status
+      const migrations = await db.execute(sql`
+        SELECT hash, created_at 
+        FROM __drizzle_migrations 
+        ORDER BY created_at DESC 
+        LIMIT 5
+      `);
+      
+      console.log('\n📝 Recent Migrations:');
+      console.log('====================');
+      migrations.rows.forEach(m => {
+        console.log(`- ${m.hash} (${new Date(m.created_at).toLocaleString()})`);
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error checking tables:', error.message);
+  }
+  
+  process.exit(0);
+}
 
-console.log('\n✅ If you successfully ran all the migrations using psql, these tables should now exist in your database.');
-console.log('\nTo verify manually, you can connect to your database and run:');
-console.log('  \\dt');
-console.log('\nOr query specific tables:');
-console.log('  SELECT COUNT(*) FROM users;');
-console.log('  SELECT COUNT(*) FROM customers;');
-console.log('  SELECT COUNT(*) FROM suppliers;');
-
-console.log('\n📝 Next Steps:');
-console.log('1. Start the backend server: npm start');
-console.log('2. Start the frontend: cd ../FRONTEND && npm start');
-console.log('3. Test the API endpoints');
-console.log('4. Use the validation script once dependencies are installed');
+checkTables();

@@ -3,7 +3,7 @@ import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 import slowDown from 'express-slow-down';
 import { body, param, query, validationResult } from 'express-validator';
 import crypto from 'crypto';
-import { db } from '../db/index.js';
+import { db } from '../config/database.js';
 import { timeSeriesMetrics } from '../db/schema.js';
 
 /**

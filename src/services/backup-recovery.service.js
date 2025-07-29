@@ -5,7 +5,7 @@ import { promisify } from 'util';
 import { createWriteStream, createReadStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { createGzip, createGunzip } from 'zlib';
-import { db } from '../db/index.js';
+import { db } from '../config/database.js';
 import { timeSeriesMetrics } from '../db/schema.js';
 import { encryptionService } from './encryption.service.js';
 
