@@ -141,7 +141,116 @@ tier_pricing      JSONB DEFAULT '[]'
 - `price_item_list_sku_idx` (price_list_id, sku)
 - `price_item_min_qty_idx` (min_quantity)
 
+<<<<<<< HEAD
 ### 4. Upload History Table (New)
+=======
+### 4. Supplier Inventory Table (New)
+
+Tracks supplier inventory levels, lead times, and availability for efficient procurement:
+
+```sql
+-- Core identification
+id                       UUID PRIMARY KEY
+supplier_id              UUID REFERENCES suppliers(id) ON DELETE CASCADE NOT NULL
+product_id               UUID REFERENCES products(id) ON DELETE CASCADE NOT NULL
+sku                      VARCHAR(100) NOT NULL
+
+-- Stock levels at supplier
+quantity_available       INTEGER DEFAULT 0 NOT NULL
+quantity_allocated       INTEGER DEFAULT 0 NOT NULL
+quantity_on_order        INTEGER DEFAULT 0 NOT NULL
+quantity_in_production   INTEGER DEFAULT 0 NOT NULL
+
+-- Lead time information
+standard_lead_time_days  INTEGER DEFAULT 0 NOT NULL
+express_lead_time_days   INTEGER
+current_lead_time_days   INTEGER DEFAULT 0 NOT NULL
+lead_time_variance_days  INTEGER DEFAULT 0
+
+-- Availability and scheduling
+next_available_date      TIMESTAMP WITH TIME ZONE
+production_schedule      JSONB DEFAULT '[]'
+                         -- Format: [{"date": "2025-08-01", "quantity": 1000}]
+blackout_dates           JSONB DEFAULT '[]'
+                         -- Format: [{"start": "2025-12-20", "end": "2025-01-05"}]
+
+-- Minimum order quantities
+min_order_quantity       INTEGER DEFAULT 1 NOT NULL
+order_increment          INTEGER DEFAULT 1 NOT NULL
+max_order_quantity       INTEGER
+
+-- Pricing tiers
+default_unit_price       DECIMAL(10,2)
+volume_pricing           JSONB DEFAULT '[]'
+                         -- Format: [{"minQty": 100, "price": 9.50, "discount": 5.0}]
+currency                 VARCHAR(3) DEFAULT 'USD' NOT NULL
+price_list_item_id       UUID REFERENCES price_list_items(id)
+
+-- Supplier performance metrics
+on_time_delivery_rate    DECIMAL(5,2) DEFAULT 100.00
+quality_rating           DECIMAL(5,2) DEFAULT 100.00
+fulfillment_rate         DECIMAL(5,2) DEFAULT 100.00
+last_delivery_date       TIMESTAMP WITH TIME ZONE
+last_order_date          TIMESTAMP WITH TIME ZONE
+
+-- Warehouse preferences
+preferred_warehouse_id   UUID REFERENCES warehouses(id)
+alternate_warehouse_ids  JSONB DEFAULT '[]'
+
+-- Product specifications
+product_specifications   JSONB DEFAULT '{}'
+packaging_info           JSONB DEFAULT '{}'
+                         -- Format: {"unitsPerCase": 12, "caseDimensions": {...}, "weight": 25}
+handling_requirements    JSONB DEFAULT '{}'
+                         -- Format: {"temperature": "cool", "fragile": true, "hazmat": false}
+
+-- Status and lifecycle
+status                   VARCHAR(50) DEFAULT 'active' NOT NULL
+                         -- Constraint: active, discontinued, seasonal, temporarily_unavailable
+availability_status      VARCHAR(50) DEFAULT 'in_stock' NOT NULL
+                         -- Constraint: in_stock, low_stock, out_of_stock, made_to_order
+discontinued_date        TIMESTAMP WITH TIME ZONE
+seasonal_availability    JSONB DEFAULT '{}'
+                         -- Format: {"startMonth": 3, "endMonth": 10}
+
+-- Integration and sync
+external_inventory_id    VARCHAR(100)
+last_sync_date           TIMESTAMP WITH TIME ZONE
+sync_status              VARCHAR(50) DEFAULT 'pending'
+                         -- Constraint: pending, synced, failed, disabled
+sync_errors              JSONB DEFAULT '[]'
+
+-- Notes and metadata
+notes                    TEXT
+internal_notes           TEXT
+metadata                 JSONB DEFAULT '{}' NOT NULL
+
+-- Audit trail
+created_by               UUID
+updated_by               UUID
+created_at               TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+updated_at               TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+
+-- Composite unique constraint
+CONSTRAINT supplier_inventory_supplier_product_unique UNIQUE (supplier_id, product_id)
+```
+
+**Indexes:**
+- `supplier_inv_supplier_idx` (supplier_id)
+- `supplier_inv_product_idx` (product_id)
+- `supplier_inv_sku_idx` (sku)
+- `supplier_inv_status_idx` (status)
+- `supplier_inv_availability_idx` (availability_status)
+- `supplier_inv_supplier_product_idx` (supplier_id, product_id)
+- `supplier_inv_supplier_sku_idx` (supplier_id, sku)
+- `supplier_inv_next_available_idx` (next_available_date)
+- `supplier_inv_lead_time_idx` (current_lead_time_days)
+- `supplier_inv_warehouse_idx` (preferred_warehouse_id)
+- `supplier_inv_sync_status_idx` (sync_status)
+- `supplier_inv_external_id_idx` (external_inventory_id)
+
+### 5. Upload History Table (New)
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 
 Tracks all price list upload operations for auditing and error handling:
 
@@ -221,6 +330,19 @@ updated_at      TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
 - Validation errors stored in JSON format
 - Approval workflow with approval tracking
 
+<<<<<<< HEAD
+=======
+### 7. Supplier Inventory Management
+- Real-time inventory tracking at supplier locations
+- Lead time management with standard and express options
+- Production schedule and blackout dates support
+- Volume-based pricing integration
+- Supplier performance metrics (on-time delivery, quality, fulfillment)
+- Warehouse preference management
+- Automatic availability status calculation
+- External system integration support
+
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 ## Migration Instructions
 
 ### 1. Apply Migration
@@ -263,6 +385,18 @@ node src/db/migrations/migration-helper.js status
 - File size must be positive integer
 - Upload date cannot be in the future (business rule)
 
+<<<<<<< HEAD
+=======
+### Supplier Inventory Constraints
+- `status` must be one of: active, discontinued, seasonal, temporarily_unavailable
+- `availability_status` must be one of: in_stock, low_stock, out_of_stock, made_to_order
+- `sync_status` must be one of: pending, synced, failed, disabled
+- All quantity fields must be non-negative
+- `min_order_quantity` and `order_increment` must be greater than 0
+- One supplier-product combination must be unique (enforced by composite constraint)
+- Availability status automatically calculated based on effective quantity
+
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 ## Performance Considerations
 
 ### Indexing Strategy

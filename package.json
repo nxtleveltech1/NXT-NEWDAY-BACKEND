@@ -29,6 +29,12 @@
     "test:unit": "NODE_OPTIONS='--experimental-vm-modules' jest src/services/__tests__",
     "test:integration": "NODE_OPTIONS='--experimental-vm-modules' jest __tests__/integration",
     "test:performance": "node __tests__/performance/benchmark.js",
+<<<<<<< HEAD
+=======
+    "test:supplier": "NODE_OPTIONS='--experimental-vm-modules' jest --testPathPattern=supplier",
+    "test:supplier:coverage": "NODE_OPTIONS='--experimental-vm-modules' jest --testPathPattern=supplier --coverage",
+    "test:coverage:report": "node scripts/generate-test-coverage-report.js",
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
     "perf:analytics": "autocannon -c 10 -d 10 http://localhost:4000/api/inventory/analytics",
     "perf:profile": "clinic doctor -- node index.js",
     "perf:benchmark": "node scripts/performance-benchmark.js",
@@ -71,6 +77,10 @@
     "@woocommerce/woocommerce-rest-api": "^1.0.2",
     "argon2": "^0.43.1",
     "bcrypt": "^6.0.0",
+<<<<<<< HEAD
+=======
+    "bull": "^4.16.5",
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
     "compression": "^1.8.1",
     "cors": "^2.8.5",
     "csv-parse": "^5.6.0",
@@ -88,6 +98,10 @@
     "jwks-rsa": "^3.0.0",
     "mathjs": "^14.5.3",
     "multer": "^1.4.5-lts.1",
+<<<<<<< HEAD
+=======
+    "mysql2": "^3.14.3",
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
     "node-cron": "^3.0.3",
     "openai": "^5.10.1",
     "pg": "^8.11.3",
@@ -95,7 +109,20 @@
     "redis": "^5.6.0",
     "response-time": "^2.3.4",
     "ws": "^8.18.3",
+<<<<<<< HEAD
     "xlsx": "^0.18.5"
+=======
+    "xlsx": "^0.18.5",
+    "pdf-parse": "^1.1.1",
+    "tesseract.js": "^5.0.4",
+    "mammoth": "^1.6.0",
+    "mailparser": "^3.6.5",
+    "@kenjiuno/msgreader": "^1.19.0",
+    "natural": "^6.10.4",
+    "fuzzyset": "^1.0.7",
+    "xml2js": "^0.6.2",
+    "adm-zip": "^0.5.10"
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

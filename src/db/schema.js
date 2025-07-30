@@ -832,6 +832,99 @@ export const purchaseOrderReceiptItems = pgTable('purchase_order_receipt_items',
   warehouseIdx: index('po_receipt_items_warehouse_idx').on(table.warehouseId),
 }));
 
+<<<<<<< HEAD
+=======
+// ==================== SUPPLIER INVENTORY MANAGEMENT ====================
+
+// Supplier Inventory table (tracks supplier stock levels and lead times)
+export const supplierInventory = pgTable('supplier_inventory', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  supplierId: uuid('supplier_id').notNull().references(() => suppliers.id, { onDelete: 'cascade' }),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  sku: varchar('sku', { length: 100 }).notNull(),
+  
+  // Stock levels at supplier
+  quantityAvailable: integer('quantity_available').default(0).notNull(),
+  quantityAllocated: integer('quantity_allocated').default(0).notNull(),
+  quantityOnOrder: integer('quantity_on_order').default(0).notNull(),
+  quantityInProduction: integer('quantity_in_production').default(0).notNull(),
+  
+  // Lead time information
+  standardLeadTimeDays: integer('standard_lead_time_days').default(0).notNull(),
+  expressLeadTimeDays: integer('express_lead_time_days'),
+  currentLeadTimeDays: integer('current_lead_time_days').default(0).notNull(),
+  leadTimeVarianceDays: integer('lead_time_variance_days').default(0),
+  
+  // Availability and scheduling
+  nextAvailableDate: timestamp('next_available_date', { withTimezone: true }),
+  productionSchedule: jsonb('production_schedule').default(sql`'[]'::jsonb`), // Array of {date, quantity}
+  blackoutDates: jsonb('blackout_dates').default(sql`'[]'::jsonb`), // Array of date ranges
+  
+  // Minimum order quantities
+  minOrderQuantity: integer('min_order_quantity').default(1).notNull(),
+  orderIncrement: integer('order_increment').default(1).notNull(),
+  maxOrderQuantity: integer('max_order_quantity'),
+  
+  // Pricing tiers
+  defaultUnitPrice: decimal('default_unit_price', { precision: 10, scale: 2 }),
+  volumePricing: jsonb('volume_pricing').default(sql`'[]'::jsonb`), // Array of {minQty, price, discount}
+  currency: varchar('currency', { length: 3 }).default('USD').notNull(),
+  priceListItemId: uuid('price_list_item_id').references(() => priceListItems.id),
+  
+  // Supplier performance metrics
+  onTimeDeliveryRate: decimal('on_time_delivery_rate', { precision: 5, scale: 2 }).default('100.00'),
+  qualityRating: decimal('quality_rating', { precision: 5, scale: 2 }).default('100.00'),
+  fulfillmentRate: decimal('fulfillment_rate', { precision: 5, scale: 2 }).default('100.00'),
+  lastDeliveryDate: timestamp('last_delivery_date', { withTimezone: true }),
+  lastOrderDate: timestamp('last_order_date', { withTimezone: true }),
+  
+  // Warehouse preferences
+  preferredWarehouseId: uuid('preferred_warehouse_id').references(() => warehouses.id),
+  alternateWarehouseIds: jsonb('alternate_warehouse_ids').default(sql`'[]'::jsonb`),
+  
+  // Product specifications
+  productSpecifications: jsonb('product_specifications').default(sql`'{}'::jsonb`),
+  packagingInfo: jsonb('packaging_info').default(sql`'{}'::jsonb`),
+  handlingRequirements: jsonb('handling_requirements').default(sql`'{}'::jsonb`),
+  
+  // Status and lifecycle
+  status: varchar('status', { length: 50 }).default('active').notNull(),
+  availabilityStatus: varchar('availability_status', { length: 50 }).default('in_stock').notNull(),
+  discontinuedDate: timestamp('discontinued_date', { withTimezone: true }),
+  seasonalAvailability: jsonb('seasonal_availability').default(sql`'{}'::jsonb`),
+  
+  // Integration and sync
+  externalInventoryId: varchar('external_inventory_id', { length: 100 }),
+  lastSyncDate: timestamp('last_sync_date', { withTimezone: true }),
+  syncStatus: varchar('sync_status', { length: 50 }).default('pending'),
+  syncErrors: jsonb('sync_errors').default(sql`'[]'::jsonb`),
+  
+  // Notes and metadata
+  notes: text('notes'),
+  internalNotes: text('internal_notes'),
+  metadata: jsonb('metadata').default(sql`'{}'::jsonb`).notNull(),
+  
+  // Audit trail
+  createdBy: uuid('created_by'),
+  updatedBy: uuid('updated_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  supplierIdx: index('supplier_inv_supplier_idx').on(table.supplierId),
+  productIdx: index('supplier_inv_product_idx').on(table.productId),
+  skuIdx: index('supplier_inv_sku_idx').on(table.sku),
+  statusIdx: index('supplier_inv_status_idx').on(table.status),
+  availabilityIdx: index('supplier_inv_availability_idx').on(table.availabilityStatus),
+  supplierProductIdx: index('supplier_inv_supplier_product_idx').on(table.supplierId, table.productId),
+  supplierSkuIdx: index('supplier_inv_supplier_sku_idx').on(table.supplierId, table.sku),
+  nextAvailableIdx: index('supplier_inv_next_available_idx').on(table.nextAvailableDate),
+  leadTimeIdx: index('supplier_inv_lead_time_idx').on(table.currentLeadTimeDays),
+  warehouseIdx: index('supplier_inv_warehouse_idx').on(table.preferredWarehouseId),
+  syncStatusIdx: index('supplier_inv_sync_status_idx').on(table.syncStatus),
+  externalIdIdx: index('supplier_inv_external_id_idx').on(table.externalInventoryId),
+}));
+
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 // ==================== ROLE-BASED ACCESS CONTROL ====================
 
 // Permissions table
@@ -977,3 +1070,28 @@ export const timeSeriesHourlyMetrics = pgTable('time_series_hourly_metrics', {
     table.dimension2
   ),
 }));
+<<<<<<< HEAD
+=======
+
+// Order allocations table for stock allocation tracking
+export const orderAllocations = pgTable('order_allocations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  orderId: uuid('order_id').notNull(),
+  orderItemId: uuid('order_item_id').notNull(),
+  inventoryId: integer('inventory_id').references(() => inventory.id).notNull(),
+  productId: uuid('product_id').notNull(),
+  warehouseId: uuid('warehouse_id').notNull(),
+  locationId: uuid('location_id'),
+  supplierId: uuid('supplier_id'),
+  supplierName: varchar('supplier_name', { length: 255 }),
+  supplierCode: varchar('supplier_code', { length: 50 }),
+  quantity: integer('quantity').notNull(),
+  unitCost: decimal('unit_cost', { precision: 10, scale: 2 }),
+  totalCost: decimal('total_cost', { precision: 12, scale: 2 }),
+  status: varchar('status', { length: 20 }).default('reserved'), // reserved, fulfilled, partial, cancelled, released
+  allocatedAt: timestamp('allocated_at').defaultNow(),
+  fulfilledAt: timestamp('fulfilled_at'),
+  releasedAt: timestamp('released_at'),
+  notes: text('notes')
+});
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580

@@ -27,12 +27,24 @@ import invoiceRoutes from "./src/routes/invoice.routes.js";
 import performanceMonitoringRoutes from "./src/routes/performance-monitoring.routes.js";
 import authRoutes from "./src/routes/auth.routes.js";
 
+<<<<<<< HEAD
 // Migrated routes from unified-extractor
 import wooCommerceIntegrationRoutes from "./src/routes/woocommerce-integration.routes.js";
 import wooCommerceSyncRoutes from "./src/routes/woocommerce-sync.routes.js";
 import dataImportRoutes from "./src/routes/data-import.routes.js";
 import supplyChainExtractRoutes from "./src/routes/supply-chain-extract.routes.js";
 import { analyticsService } from "./src/services/analytics.service.js";
+=======
+// Migrated routes from unified-extractor (disabled for demo)
+// import wooCommerceIntegrationRoutes from "./src/routes/woocommerce-integration.routes.js";
+// import wooCommerceSyncRoutes from "./src/routes/woocommerce-sync.routes.js";
+// import dataImportRoutes from "./src/routes/data-import.routes.js";
+// import supplyChainExtractRoutes from "./src/routes/supply-chain-extract.routes.js";
+import mysqlRoutes from "./src/routes/mysql.routes.js";
+import mcpRoutes from "./src/routes/mcp.routes.js";
+import { analyticsService } from "./src/services/analytics.service.js";
+import { mcpIntegrationService } from "./src/services/mcp-integration.service.js";
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 import { integrationMonitoringService } from "./src/services/integration-monitoring.service.js";
 import materializedViewRefreshService from "./src/services/materialized-view-refresh.service.js";
 import queryOptimizationService from "./src/services/query-optimization.service.js";
@@ -262,11 +274,21 @@ app.use("/api/monitoring", protect, performanceMonitoringRoutes);
 // Mount auth routes
 app.use("/api/auth", authRoutes);
 
+<<<<<<< HEAD
 // Migrated routes from unified-extractor
 app.use("/api/woocommerce", protect, wooCommerceIntegrationRoutes);
 app.use("/api/woocommerce-sync", wooCommerceSyncRoutes); // Enhanced bidirectional sync
 app.use("/api/data-import", protect, dataImportRoutes);
 app.use("/api/supply-chain-extract", protect, supplyChainExtractRoutes);
+=======
+// Migrated routes from unified-extractor (disabled for demo)
+// app.use("/api/woocommerce", protect, wooCommerceIntegrationRoutes);
+// app.use("/api/woocommerce-sync", wooCommerceSyncRoutes); // Enhanced bidirectional sync
+// app.use("/api/data-import", protect, dataImportRoutes);
+// app.use("/api/supply-chain-extract", protect, supplyChainExtractRoutes);
+app.use("/api/mysql", mysqlRoutes);
+app.use("/api/mcp", mcpRoutes);
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 
 // Legacy price list routes (will be deprecated in favor of supplier-scoped routes)
 // These are kept for backward compatibility but new implementations should use /api/suppliers/:id/price-lists
@@ -993,6 +1015,19 @@ async function startServer() {
     await realtimeService.initialize();
     await analyticsService.initialize();
     
+<<<<<<< HEAD
+=======
+    // Initialize MCP integration service
+    try {
+      console.log('🔌 Initializing MCP integration service...');
+      await mcpIntegrationService.initializeConnections();
+      console.log('✅ MCP integration service started successfully');
+    } catch (error) {
+      console.error('❌ Failed to start MCP integration service:', error);
+      console.warn('⚠️ MCP services will be unavailable');
+    }
+    
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
     // Initialize background service orchestrator (handles all background services)
     try {
       console.log('🎯 Starting background service orchestrator with API priority optimization...');
@@ -1087,6 +1122,10 @@ async function startServer() {
         // Then stop other services
         integrationMonitoringService.stopMonitoring();
         await realtimeService.cleanup();
+<<<<<<< HEAD
+=======
+        await mcpIntegrationService.shutdown();
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
         await cacheService.disconnect();
         
         // Close database pool
@@ -1112,6 +1151,10 @@ async function startServer() {
         // Then stop other services
         integrationMonitoringService.stopMonitoring();
         await realtimeService.cleanup();
+<<<<<<< HEAD
+=======
+        await mcpIntegrationService.shutdown();
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
         await cacheService.disconnect();
         
         // Close database pool
