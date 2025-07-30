@@ -26,6 +26,12 @@ import supplyChainIntegrationRoutes from "./src/routes/supply-chain-integration.
 import invoiceRoutes from "./src/routes/invoice.routes.js";
 import performanceMonitoringRoutes from "./src/routes/performance-monitoring.routes.js";
 import authRoutes from "./src/routes/auth.routes.js";
+
+// Migrated routes from unified-extractor
+import wooCommerceIntegrationRoutes from "./src/routes/woocommerce-integration.routes.js";
+import wooCommerceSyncRoutes from "./src/routes/woocommerce-sync.routes.js";
+import dataImportRoutes from "./src/routes/data-import.routes.js";
+import supplyChainExtractRoutes from "./src/routes/supply-chain-extract.routes.js";
 import { analyticsService } from "./src/services/analytics.service.js";
 import { integrationMonitoringService } from "./src/services/integration-monitoring.service.js";
 import materializedViewRefreshService from "./src/services/materialized-view-refresh.service.js";
@@ -255,6 +261,12 @@ app.use("/api/monitoring", protect, performanceMonitoringRoutes);
 
 // Mount auth routes
 app.use("/api/auth", authRoutes);
+
+// Migrated routes from unified-extractor
+app.use("/api/woocommerce", protect, wooCommerceIntegrationRoutes);
+app.use("/api/woocommerce-sync", wooCommerceSyncRoutes); // Enhanced bidirectional sync
+app.use("/api/data-import", protect, dataImportRoutes);
+app.use("/api/supply-chain-extract", protect, supplyChainExtractRoutes);
 
 // Legacy price list routes (will be deprecated in favor of supplier-scoped routes)
 // These are kept for backward compatibility but new implementations should use /api/suppliers/:id/price-lists

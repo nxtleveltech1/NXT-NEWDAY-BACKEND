@@ -68,11 +68,12 @@
     "monitoring:dashboard": "node -e \"import('./src/services/security-monitoring.service.js').then(m => console.log(JSON.stringify(m.securityMonitoringService.getSecurityDashboard(), null, 2)))\""
   },
   "dependencies": {
+    "@woocommerce/woocommerce-rest-api": "^1.0.2",
     "argon2": "^0.43.1",
     "bcrypt": "^6.0.0",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
-    "csv-parse": "^5.5.0",
+    "csv-parse": "^5.6.0",
     "dotenv": "^17.2.0",
     "drizzle-orm": "latest",
     "express": "^4.18.2",
