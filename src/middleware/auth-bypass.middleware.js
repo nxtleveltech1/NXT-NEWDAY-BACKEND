@@ -7,7 +7,7 @@
  * SECURITY WARNING: This should NEVER be used in production environments!
  */
 
-import { rbacService } from './rbac.middleware.js';
+import { rbacService, SYSTEM_PERMISSIONS } from './rbac.middleware.js';
 
 /**
  * Development Authentication Bypass
@@ -80,7 +80,7 @@ export const testAuthBypass = (userType = 'user') => {
       userId: 'test-admin-123',
       email: 'admin@test.com',
       roles: ['super_admin'],
-      permissions: Object.keys(require('./rbac.middleware.js').SYSTEM_PERMISSIONS || {})
+      permissions: Object.keys(SYSTEM_PERMISSIONS || {})
     },
     manager: {
       userId: 'test-manager-123', 
