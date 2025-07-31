@@ -141,6 +141,9 @@ tier_pricing      JSONB DEFAULT '[]'
 - `price_item_list_sku_idx` (price_list_id, sku)
 - `price_item_min_qty_idx` (min_quantity)
 
+<<<<<<< HEAD
+### 4. Upload History Table (New)
+=======
 ### 4. Supplier Inventory Table (New)
 
 Tracks supplier inventory levels, lead times, and availability for efficient procurement:
@@ -247,6 +250,7 @@ CONSTRAINT supplier_inventory_supplier_product_unique UNIQUE (supplier_id, produ
 - `supplier_inv_external_id_idx` (external_inventory_id)
 
 ### 5. Upload History Table (New)
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 
 Tracks all price list upload operations for auditing and error handling:
 
@@ -326,6 +330,8 @@ updated_at      TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
 - Validation errors stored in JSON format
 - Approval workflow with approval tracking
 
+<<<<<<< HEAD
+=======
 ### 7. Supplier Inventory Management
 - Real-time inventory tracking at supplier locations
 - Lead time management with standard and express options
@@ -336,6 +342,7 @@ updated_at      TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
 - Automatic availability status calculation
 - External system integration support
 
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 ## Migration Instructions
 
 ### 1. Apply Migration
@@ -378,6 +385,8 @@ node src/db/migrations/migration-helper.js status
 - File size must be positive integer
 - Upload date cannot be in the future (business rule)
 
+<<<<<<< HEAD
+=======
 ### Supplier Inventory Constraints
 - `status` must be one of: active, discontinued, seasonal, temporarily_unavailable
 - `availability_status` must be one of: in_stock, low_stock, out_of_stock, made_to_order
@@ -387,6 +396,7 @@ node src/db/migrations/migration-helper.js status
 - One supplier-product combination must be unique (enforced by composite constraint)
 - Availability status automatically calculated based on effective quantity
 
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 ## Performance Considerations
 
 ### Indexing Strategy

@@ -1,3 +1,11 @@
+<<<<<<< HEAD
+const express = require('express');
+const router = express.Router();
+const multer = require('multer');
+const dataImportService = require('../services/data-import.service');
+const authMiddleware = require('../middleware/auth.middleware');
+const { performance } = require('../middleware/performance.middleware');
+=======
 import express from 'express';
 const router = express.Router();
 import multer from 'multer';
@@ -9,6 +17,7 @@ import { protect as authMiddleware } from '../middleware/auth.middleware.js';
 
 // Simple performance middleware stub
 const performance = (label) => (req, res, next) => next();
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 
 // Configure multer for file uploads
 const upload = multer({
@@ -284,4 +293,8 @@ router.post('/cancel/:importId', authMiddleware, performance('data-import-cancel
   }
 });
 
+<<<<<<< HEAD
+module.exports = router;
+=======
 export default router;
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580

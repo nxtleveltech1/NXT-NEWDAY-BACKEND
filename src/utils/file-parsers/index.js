@@ -3,10 +3,13 @@ import { parseExcel, validateExcelStructure, generateExcelTemplate } from './exc
 import { parseJSON, validateJSONStructure, generateJSONTemplate } from './json-parser.js';
 import { parseXML, validateXMLStructure, generateXMLTemplate } from './xml-parser.js';
 import { parsePDF, validatePDFStructure, generatePDFTemplate } from './pdf-parser.js';
+<<<<<<< HEAD
+=======
 import { parseWord, validateWordStructure, generateWordTemplate } from './word-parser.js';
 import { parseEmail, validateEmailStructure, generateEmailTemplate } from './email-parser.js';
 import { parseIntelligentPDF, validateIntelligentPDFStructure, generateIntelligentPDFTemplate } from './intelligent-pdf-parser.js';
 import { IntelligentColumnMapper } from './intelligent-column-mapper.js';
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 
 // Supported file types
 export const SUPPORTED_FILE_TYPES = {
@@ -47,6 +50,8 @@ export const SUPPORTED_FILE_TYPES = {
     parser: parsePDF,
     validator: validatePDFStructure,
     templateGenerator: generatePDFTemplate
+<<<<<<< HEAD
+=======
   },
   WORD: {
     extensions: ['.docx', '.doc'],
@@ -75,6 +80,7 @@ export const SUPPORTED_FILE_TYPES = {
     validator: validateIntelligentPDFStructure,
     templateGenerator: generateIntelligentPDFTemplate,
     priority: 1 // Higher priority than regular PDF parser
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
   }
 };
 
@@ -106,12 +112,16 @@ export async function parsePriceListFile(file, options = {}) {
   const { filename, mimeType, buffer } = file;
   
   // Detect file type
+<<<<<<< HEAD
+  const fileType = detectFileType(filename, mimeType);
+=======
   let fileType = detectFileType(filename, mimeType);
   
   // For PDF files, check if intelligent parsing is requested
   if (fileType === 'PDF' && options.intelligentParsing !== false) {
     fileType = 'INTELLIGENT_PDF';
   }
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
   
   if (!fileType) {
     return {
@@ -130,6 +140,13 @@ export async function parsePriceListFile(file, options = {}) {
   }
   
   try {
+<<<<<<< HEAD
+    // Add file metadata to result
+    const result = await config.parser(buffer, options);
+    result.fileType = fileType;
+    result.filename = filename;
+    
+=======
     // Enhanced options for intelligent parsing
     const enhancedOptions = {
       ...options,
@@ -161,6 +178,7 @@ export async function parsePriceListFile(file, options = {}) {
       }
     }
     
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
     return result;
   } catch (error) {
     return {

@@ -6,10 +6,13 @@ import * as supplierQueries from '../db/supplier-queries.js';
 import * as priceListQueries from '../db/price-list-queries.js';
 import { parsePriceListFile, standardizePriceListData, validatePriceListData } from '../utils/file-parsers/index.js';
 import { getUploadQueue } from '../utils/upload-queue.js';
+<<<<<<< HEAD
+=======
 import * as supplierInventoryIntegration from '../services/supplier-inventory-integration.service.js';
 import * as priceCalculationEngine from '../services/price-calculation-engine.service.js';
 import * as stockAllocation from '../services/stock-allocation.service.js';
 import * as inventorySync from '../services/inventory-sync.service.js';
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 
 const router = express.Router();
 
@@ -438,6 +441,8 @@ router.get('/:id/price-lists/upload/:uploadId/status', [
 });
 
 /**
+<<<<<<< HEAD
+=======
  * POST /api/suppliers/:id/price-lists/:listId/approve
  * Approve price list for activation
  */
@@ -514,6 +519,7 @@ router.post('/:id/price-lists/:listId/approve', [
 });
 
 /**
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
  * POST /api/suppliers/:id/price-lists/:listId/activate
  * Activate price list
  */
@@ -524,6 +530,13 @@ router.post('/:id/price-lists/:listId/activate', [
   handleValidationErrors
 ], async (req, res) => {
   try {
+<<<<<<< HEAD
+    const priceList = await priceListQueries.activatePriceList(req.params.listId);
+    
+    res.json({
+      success: true,
+      data: priceList,
+=======
     // Verify supplier exists and price list belongs to supplier
     const supplier = await supplierQueries.getSupplierById(req.params.id);
     if (!supplier) {
@@ -564,6 +577,7 @@ router.post('/:id/price-lists/:listId/activate', [
     res.json({
       success: true,
       data: activatedPriceList,
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
       message: 'Price list activated successfully',
       timestamp: new Date().toISOString()
     });
@@ -578,6 +592,8 @@ router.post('/:id/price-lists/:listId/activate', [
 });
 
 /**
+<<<<<<< HEAD
+=======
  * POST /api/suppliers/:id/price-lists/:listId/deactivate
  * Deactivate price list
  */
@@ -702,6 +718,7 @@ router.get('/:id/price-lists', [
 });
 
 /**
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
  * GET /api/suppliers/:id/prices
  * Get current prices for supplier products
  */
@@ -764,6 +781,8 @@ router.get('/:id/prices', [
 });
 
 /**
+<<<<<<< HEAD
+=======
  * POST /api/suppliers/:id/prices/bulk
  * Get bulk prices for multiple SKUs
  */
@@ -836,16 +855,20 @@ router.post('/:id/prices/bulk', [
 });
 
 /**
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
  * GET /api/suppliers/:id/inventory
  * Get supplier inventory levels and product information
  */
 router.get('/:id/inventory', [
   generalRateLimit,
   param('id').isUUID().withMessage('Invalid supplier ID'),
+<<<<<<< HEAD
+=======
   query('warehouseId').optional().isUUID().withMessage('Invalid warehouse ID'),
   query('lowStock').optional().isBoolean().withMessage('lowStock must be boolean'),
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be positive integer'),
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be 1-100'),
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
   handleValidationErrors
 ], async (req, res) => {
   try {
@@ -873,6 +896,8 @@ router.get('/:id/inventory', [
 });
 
 /**
+<<<<<<< HEAD
+=======
  * GET /api/suppliers/:id/price-lists/template/:format
  * Download price list template for supplier
  */
@@ -932,12 +957,21 @@ router.get('/:id/price-lists/template/:format', [
 });
 
 /**
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
  * POST /api/suppliers/:id/purchase-receipt
  * Record purchase receipt from supplier
  */
 router.post('/:id/purchase-receipt', [
   generalRateLimit,
   param('id').isUUID().withMessage('Invalid supplier ID'),
+<<<<<<< HEAD
+  body('referenceNumber').isLength({ min: 1, max: 100 }).withMessage('Reference number required'),
+  body('items').isArray({ min: 1 }).withMessage('Items array required'),
+  body('items.*.productId').isUUID().withMessage('Valid product ID required'),
+  body('items.*.warehouseId').isUUID().withMessage('Valid warehouse ID required'),
+  body('items.*.quantity').isInt({ min: 1 }).withMessage('Quantity must be positive'),
+  body('items.*.unitCost').isFloat({ min: 0 }).withMessage('Unit cost must be non-negative'),
+=======
   body('referenceNumber').isLength({ min: 1, max: 100 }).withMessage('Reference number must be 1-100 characters'),
   body('purchaseOrderNumber').optional().isLength({ min: 1, max: 100 }).withMessage('Purchase order number must be 1-100 characters'),
   body('items').isArray({ min: 1 }).withMessage('Items array required with at least one item'),
@@ -948,6 +982,7 @@ router.post('/:id/purchase-receipt', [
   body('items.*.sku').optional().isLength({ min: 1, max: 100 }).withMessage('SKU must be 1-100 characters'),
   body('notes').optional().isLength({ max: 1000 }).withMessage('Notes must be less than 1000 characters'),
   body('deliveryDate').optional().isISO8601().withMessage('Delivery date must be valid ISO8601 date'),
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
   handleValidationErrors
 ], async (req, res) => {
   try {
@@ -1038,6 +1073,8 @@ router.get('/:id/reorder-suggestions', [
   }
 });
 
+<<<<<<< HEAD
+=======
 /**
  * GET /api/suppliers/:id/performance
  * Get detailed supplier performance metrics
@@ -1176,6 +1213,7 @@ function calculateOverallPerformanceScore(metrics) {
   return weights > 0 ? Math.round(totalScore / weights) : 0;
 }
 
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 // ==================== SUPPLIER ANALYTICS ENDPOINTS ====================
 
 /**
@@ -1188,7 +1226,10 @@ router.get('/:id/analytics', [
   query('dateFrom').optional().isISO8601().withMessage('Invalid date format'),
   query('dateTo').optional().isISO8601().withMessage('Invalid date format'),
   query('includeDetails').optional().isBoolean().withMessage('includeDetails must be boolean'),
+<<<<<<< HEAD
+=======
   query('includeComparison').optional().isBoolean().withMessage('includeComparison must be boolean'),
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
   handleValidationErrors
 ], async (req, res) => {
   try {
@@ -1334,6 +1375,8 @@ router.get('/analytics/overview', [
   }
 });
 
+<<<<<<< HEAD
+=======
 // ==================== INVENTORY INTEGRATION ENDPOINTS ====================
 
 /**
@@ -1897,4 +1940,5 @@ router.get('/:id/sync-status', [
   }
 });
 
+>>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 export default router;
