@@ -832,8 +832,6 @@ export const purchaseOrderReceiptItems = pgTable('purchase_order_receipt_items',
   warehouseIdx: index('po_receipt_items_warehouse_idx').on(table.warehouseId),
 }));
 
-<<<<<<< HEAD
-=======
 // ==================== SUPPLIER INVENTORY MANAGEMENT ====================
 
 // Supplier Inventory table (tracks supplier stock levels and lead times)
@@ -924,7 +922,6 @@ export const supplierInventory = pgTable('supplier_inventory', {
   externalIdIdx: index('supplier_inv_external_id_idx').on(table.externalInventoryId),
 }));
 
->>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 // ==================== ROLE-BASED ACCESS CONTROL ====================
 
 // Permissions table
@@ -1070,8 +1067,6 @@ export const timeSeriesHourlyMetrics = pgTable('time_series_hourly_metrics', {
     table.dimension2
   ),
 }));
-<<<<<<< HEAD
-=======
 
 // Order allocations table for stock allocation tracking
 export const orderAllocations = pgTable('order_allocations', {
@@ -1094,4 +1089,3 @@ export const orderAllocations = pgTable('order_allocations', {
   releasedAt: timestamp('released_at'),
   notes: text('notes')
 });
->>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
