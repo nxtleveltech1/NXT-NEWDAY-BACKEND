@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NXT New Day - Real-Time Dashboard</title>
+    
+    <!-- CSS Libraries -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-color: #0066cc;
+            --secondary-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --info-color: #17a2b8;
+            --light-bg: #f8f9fa;
+            --dark-bg: #1a1a1a;
+            --card-bg-light: #ffffff;
+            --card-bg-dark: #2d3748;
+            --text-light: #212529;
+            --text-dark: #ffffff;
+            --border-light: #dee2e6;
+            --border-dark: #4a5568;
+        }
+
+        /* Light theme (default) */
+        body {
+            background-color: var(--light-bg);
+            color: var(--text-light);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            transition: all 0.3s ease;
+        }
+
+        /* Dark theme */
+        body.dark-theme {
+            background-color: var(--dark-bg);
+            color: var(--text-dark);
+        }
+
+        .dark-theme .card {
+            background-color: var(--card-bg-dark);
+            border-color: var(--border-dark);
+            color: var(--text-dark);
+        }
+
+        .dark-theme .navbar {
+            background-color: var(--card-bg-dark) !important;
+            border-bottom: 1px solid var(--border-dark);
+        }
+
+        .dark-theme .btn-outline-secondary {
+            color: var(--text-dark);
+            border-color: var(--border-dark);
+        }
+
+        .dark-theme .btn-outline-secondary:hover {
+            background-color: var(--border-dark);
+            color: var(--text-dark);
+        }
+
+        .dark-theme .form-control, .dark-theme .form-select {
+            background-color: var(--card-bg-dark);
+            border-color: var(--border-dark);
+            color: var(--text-dark);
+        }
+
+        .dark-theme .table {
+            color: var(--text-dark);
+        }
+
+        .dark-theme .table-dark {
+            --bs-table-bg: var(--card-bg-dark);
+        }
+
+        /* Dashboard specific styles */
+        .dashboard-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            border-radius: 0 0 1rem 1rem;
+        }
+
+        .metric-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .metric-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-change {
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .metric-change.positive {
+            color: var(--secondary-color);
+        }
+
+        .metric-change.negative {
+            color: var(--danger-color);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 1rem 0;
+        }
+
+        .activity-item {
+            border-left: 3px solid var(--primary-color);
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            background: rgba(0, 102, 204, 0.05);
+            border-radius: 0 0.25rem 0.25rem 0;
+            transition: all 0.2s ease;
+        }
+
+        .activity-item:hover {
+            background: rgba(0, 102, 204, 0.1);
+            transform: translateX(5px);
+        }
+
+        .activity-time {
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+
+        .status-online { background-color: var(--secondary-color); }
+        .status-warning { background-color: var(--warning-color); }
+        .status-offline { background-color: var(--danger-color); }
+
+        .alert-item {
+            border-left: 4px solid;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: 0 0.25rem 0.25rem 0;
+        }
+
+        .alert-critical { border-left-color: var(--danger-color); background: rgba(220, 53, 69, 0.1); }
+        .alert-high { border-left-color: var(--warning-color); background: rgba(255, 193, 7, 0.1); }
+        .alert-medium { border-left-color: var(--info-color); background: rgba(23, 162, 184, 0.1); }
+        .alert-low { border-left-color: var(--secondary-color); background: rgba(40, 167, 69, 0.1); }
+
+        .connection-status {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 15px;
+            right: 20px;
+            z-index: 1001;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover {
+            background: var(--secondary-color);
+            transform: scale(1.1);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .dashboard-header {
+                padding: 1rem 0;
+                margin-bottom: 1rem;
+            }
+            
+            .metric-value {
+                font-size: 1.8rem;
+            }
+            
+            .chart-container {
+                height: 250px;
+            }
+            
+            .connection-status {
+                top: 60px;
+                right: 10px;
+            }
+            
+            .theme-toggle {
+                top: 10px;
+                right: 10px;
+                width: 40px;
+                height: 40px;
+            }
+        }
+
+        /* Loading animation */
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Notification styles */
+        .notification {
+            position: fixed;
+            top: 120px;
+            right: 20px;
+            max-width: 350px;
+            z-index: 1002;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
+        /* Widget grid */
+        .widget-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .widget {
+            background: var(--card-bg-light);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .dark-theme .widget {
+            background: var(--card-bg-dark);
+        }
+
+        .widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .dark-theme .widget-header {
+            border-bottom-color: var(--border-dark);
+        }
+
+        .widget-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .widget-icon {
+            color: var(--primary-color);
+            font-size: 1.2rem;
+        }
+
+        /* Export button */
+        .export-dropdown {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <!-- Theme Toggle Button -->
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark Mode">
+        <i class="fas fa-moon" id="theme-icon"></i>
+    </button>
+
+    <!-- Connection Status -->
+    <div class="connection-status">
+        <div class="alert alert-success alert-sm d-none" id="connection-status">
+            <i class="fas fa-wifi"></i> Connected
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-chart-line"></i> NXT New Day Dashboard
+            </a>
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item">
+                    <span class="navbar-text" id="last-updated">
+                        Last updated: <span id="update-time">--</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <div class="container">
+            <div class="row">
+                <div class="col-12">
+                    <h1 class="mb-0">
+                        <i class="fas fa-tachometer-alt"></i> 
+                        Real-Time Business Dashboard
+                    </h1>
+                    <p class="mb-0 mt-2 opacity-75">
+                        Monitor your business metrics, inventory, customers, and system performance in real-time
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid">
+        <!-- Key Metrics Row -->
+        <div class="row mb-4">
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card metric-card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <p class="metric-label">Total Sales</p>
+                                <h2 class="metric-value" id="total-sales">$0</h2>
+                                <span class="metric-change" id="sales-change">+0%</span>
+                            </div>
+                            <div class="metric-icon">
+                                <i class="fas fa-dollar-sign fa-2x text-success"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card metric-card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <p class="metric-label">Active Customers</p>
+                                <h2 class="metric-value" id="active-customers">0</h2>
+                                <span class="metric-change" id="customers-change">+0%</span>
+                            </div>
+                            <div class="metric-icon">
+                                <i class="fas fa-users fa-2x text-primary"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card metric-card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <p class="metric-label">Inventory Value</p>
+                                <h2 class="metric-value" id="inventory-value">$0</h2>
+                                <span class="metric-change" id="inventory-change">+0%</span>
+                            </div>
+                            <div class="metric-icon">
+                                <i class="fas fa-boxes fa-2x text-warning"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card metric-card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <p class="metric-label">System Health</p>
+                                <h2 class="metric-value" id="system-health">0%</h2>
+                                <span class="metric-change" id="health-status">Normal</span>
+                            </div>
+                            <div class="metric-icon">
+                                <i class="fas fa-heartbeat fa-2x text-info"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="row mb-4">
+            <div class="col-lg-8 mb-3">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-area"></i> Sales Analytics
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="salesChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-pie"></i> Sales by Category
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="categoryChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Widget Grid -->
+        <div class="widget-grid">
+            <!-- Inventory Status Widget -->
+            <div class="widget">
+                <div class="widget-header">
+                    <h5 class="widget-title">Inventory Status</h5>
+                    <i class="fas fa-warehouse widget-icon"></i>
+                </div>
+                <div class="widget-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="metric-value text-success" id="in-stock">0</div>
+                            <div class="metric-label">In Stock</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="metric-value text-warning" id="low-stock">0</div>
+                            <div class="metric-label">Low Stock</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="metric-value text-danger" id="out-stock">0</div>
+                            <div class="metric-label">Out of Stock</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Performance Widget -->
+            <div class="widget">
+                <div class="widget-header">
+                    <h5 class="widget-title">System Performance</h5>
+                    <i class="fas fa-server widget-icon"></i>
+                </div>
+                <div class="widget-body">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>CPU Usage</span>
+                            <span id="cpu-usage">0%</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar" id="cpu-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Memory Usage</span>
+                            <span id="memory-usage">0%</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-warning" id="memory-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="d-flex justify-content-between">
+                            <span>Disk Usage</span>
+                            <span id="disk-usage">0%</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-info" id="disk-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity Widget -->
+            <div class="widget">
+                <div class="widget-header">
+                    <h5 class="widget-title">Recent Activity</h5>
+                    <i class="fas fa-clock widget-icon"></i>
+                </div>
+                <div class="widget-body">
+                    <div id="activity-feed" class="activity-list" style="max-height: 300px; overflow-y: auto;">
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Alerts Widget -->
+            <div class="widget">
+                <div class="widget-header">
+                    <h5 class="widget-title">System Alerts</h5>
+                    <i class="fas fa-exclamation-triangle widget-icon"></i>
+                </div>
+                <div class="widget-body">
+                    <div id="alerts-feed" class="alerts-list" style="max-height: 300px; overflow-y: auto;">
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Customer Metrics Widget -->
+            <div class="widget">
+                <div class="widget-header">
+                    <h5 class="widget-title">Customer Insights</h5>
+                    <i class="fas fa-user-friends widget-icon"></i>
+                </div>
+                <div class="widget-body">
+                    <div class="row text-center mb-3">
+                        <div class="col-6">
+                            <div class="metric-value text-primary" id="total-customers">0</div>
+                            <div class="metric-label">Total Customers</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="metric-value text-success" id="new-customers">0</div>
+                            <div class="metric-label">New Today</div>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <div class="metric-value text-info" id="conversion-rate">0%</div>
+                        <div class="metric-label">Conversion Rate</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Products Widget -->
+            <div class="widget">
+                <div class="widget-header">
+                    <h5 class="widget-title">Top Products</h5>
+                    <i class="fas fa-star widget-icon"></i>
+                </div>
+                <div class="widget-body">
+                    <div id="top-products" class="top-products-list">
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Dropdown -->
+    <div class="export-dropdown">
+        <div class="btn-group dropup">
+            <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="fas fa-download"></i> Export
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="#" onclick="exportData('json')">
+                    <i class="fas fa-file-code"></i> JSON
+                </a></li>
+                <li><a class="dropdown-item" href="#" onclick="exportData('csv')">
+                    <i class="fas fa-file-csv"></i> CSV
+                </a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="#" onclick="printDashboard()">
+                    <i class="fas fa-print"></i> Print
+                </a></li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- JavaScript Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.min.js"></script>
+    
+    <!-- Dashboard JavaScript -->
+    <script>
+        // Dashboard Application
+        class DashboardApp {
+            constructor() {
+                this.websocket = null;
+                this.isConnected = false;
+                this.charts = {};
+                this.updateInterval = null;
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 5;
+                
+                this.init();
+            }
+
+            init() {
+                console.log('🚀 Initializing NXT New Day Dashboard...');
+                this.setupWebSocket();
+                this.loadInitialData();
+                this.initializeCharts();
+                this.startPeriodicUpdates();
+                this.bindEvents();
+                
+                // Load theme preference
+                const savedTheme = localStorage.getItem('dashboard-theme');
+                if (savedTheme === 'dark') {
+                    document.body.classList.add('dark-theme');
+                    document.getElementById('theme-icon').className = 'fas fa-sun';
+                }
+            }
+
+            setupWebSocket() {
+                try {
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsUrl = `${protocol}//${window.location.host}/dashboard-ws`;
+                    
+                    this.websocket = new WebSocket(wsUrl);
+                    
+                    this.websocket.onopen = () => {
+                        console.log('✅ WebSocket connected');
+                        this.isConnected = true;
+                        this.reconnectAttempts = 0;
+                        this.updateConnectionStatus(true);
+                        
+                        // Subscribe to all data streams
+                        this.websocket.send(JSON.stringify({
+                            type: 'subscribe',
+                            streams: [
+                                'sales-metrics',
+                                'inventory-status',
+                                'customer-activity',
+                                'system-performance',
+                                'real-time-analytics',
+                                'notifications',
+                                'alerts'
+                            ]
+                        }));
+                    };
+                    
+                    this.websocket.onmessage = (event) => {
+                        try {
+                            const message = JSON.parse(event.data);
+                            this.handleWebSocketMessage(message);
+                        } catch (error) {
+                            console.error('Error parsing WebSocket message:', error);
+                        }
+                    };
+                    
+                    this.websocket.onclose = () => {
+                        console.log('❌ WebSocket disconnected');
+                        this.isConnected = false;
+                        this.updateConnectionStatus(false);
+                        this.attemptReconnect();
+                    };
+                    
+                    this.websocket.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        this.updateConnectionStatus(false);
+                    };
+                    
+                } catch (error) {
+                    console.error('Failed to setup WebSocket:', error);
+                    this.updateConnectionStatus(false);
+                }
+            }
+
+            handleWebSocketMessage(message) {
+                switch (message.type) {
+                    case 'welcome':
+                        console.log('👋 Dashboard connected:', message.clientId);
+                        break;
+                    case 'data-update':
+                        this.handleDataUpdate(message);
+                        break;
+                    case 'notification':
+                        this.showNotification(message);
+                        break;
+                    case 'subscription-confirmed':
+                        console.log('📡 Subscribed to streams:', message.streams);
+                        break;
+                    default:
+                        console.log('📨 WebSocket message:', message);
+                }
+            }
+
+            handleDataUpdate(message) {
+                console.log(`📊 Data update for ${message.stream}:`, message.data);
+                
+                switch (message.stream) {
+                    case 'sales-metrics':
+                        this.updateSalesMetrics(message.data);
+                        break;
+                    case 'inventory-status':
+                        this.updateInventoryStatus(message.data);
+                        break;
+                    case 'customer-activity':
+                        this.updateCustomerMetrics(message.data);
+                        break;
+                    case 'system-performance':
+                        this.updateSystemPerformance(message.data);
+                        break;
+                    case 'real-time-analytics':
+                        this.updateAnalytics(message.data);
+                        break;
+                }
+                
+                this.updateLastUpdatedTime();
+            }
+
+            async loadInitialData() {
+                try {
+                    console.log('📡 Loading initial dashboard data...');
+                    
+                    const response = await fetch('/api/dashboard/overview');
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    if (result.success) {
+                        this.updateDashboard(result.data);
+                        console.log('✅ Initial data loaded');
+                    } else {
+                        throw new Error(result.error || 'Failed to load data');
+                    }
+                } catch (error) {
+                    console.error('❌ Failed to load initial data:', error);
+                    this.showNotification({
+                        type: 'error',
+                        title: 'Data Load Error',
+                        message: 'Failed to load initial dashboard data. Using demo data.',
+                        severity: 'error'
+                    });
+                    this.loadDemoData();
+                }
+            }
+
+            updateDashboard(data) {
+                // Update key metrics
+                if (data.summary) {
+                    this.updateElement('total-sales', this.formatCurrency(data.summary.totalSales));
+                    this.updateElement('active-customers', this.formatNumber(data.summary.activeCustomers));
+                    this.updateElement('inventory-value', this.formatCurrency(data.summary.inventoryValue));
+                    this.updateElement('system-health', data.summary.systemHealth + '%');
+                }
+
+                // Update detailed sections
+                if (data.sales) this.updateSalesMetrics(data.sales);
+                if (data.inventory) this.updateInventoryStatus(data.inventory);
+                if (data.customers) this.updateCustomerMetrics(data.customers);
+                if (data.performance) this.updateSystemPerformance(data.performance);
+                if (data.activity) this.updateActivityFeed(data.activity);
+                if (data.alerts) this.updateAlertsFeed(data.alerts);
+
+                this.updateLastUpdatedTime();
+            }
+
+            updateSalesMetrics(data) {
+                // Update sales charts
+                if (this.charts.salesChart && data.salesByHour) {
+                    this.charts.salesChart.data.labels = data.salesByHour.map(item => `${item.hour}:00`);
+                    this.charts.salesChart.data.datasets[0].data = data.salesByHour.map(item => item.sales);
+                    this.charts.salesChart.update('none');
+                }
+
+                if (this.charts.categoryChart && data.salesByCategory) {
+                    this.charts.categoryChart.data.labels = data.salesByCategory.map(item => item.category);
+                    this.charts.categoryChart.data.datasets[0].data = data.salesByCategory.map(item => item.sales);
+                    this.charts.categoryChart.update('none');
+                }
+
+                // Update top products
+                if (data.topProducts) {
+                    this.updateTopProducts(data.topProducts);
+                }
+
+                // Update growth indicators
+                if (data.salesGrowth) {
+                    this.updateChangeIndicator('sales-change', data.salesGrowth.daily);
+                }
+            }
+
+            updateInventoryStatus(data) {
+                if (data.summary) {
+                    this.updateElement('in-stock', this.formatNumber(data.summary.totalItems - data.summary.lowStockItems - data.summary.outOfStockItems));
+                    this.updateElement('low-stock', this.formatNumber(data.summary.lowStockItems));
+                    this.updateElement('out-stock', this.formatNumber(data.summary.outOfStockItems));
+                }
+            }
+
+            updateCustomerMetrics(data) {
+                if (data.summary) {
+                    this.updateElement('total-customers', this.formatNumber(data.summary.totalCustomers));
+                    this.updateElement('new-customers', this.formatNumber(data.summary.newCustomers));
+                    this.updateElement('conversion-rate', data.conversionRate + '%');
+                    
+                    this.updateChangeIndicator('customers-change', data.summary.retentionRate);
+                }
+            }
+
+            updateSystemPerformance(data) {
+                if (data.system) {
+                    this.updateElement('cpu-usage', data.system.cpuUsage + '%');
+                    this.updateElement('memory-usage', data.system.memoryUsage + '%');
+                    this.updateElement('disk-usage', data.system.diskUsage + '%');
+                    
+                    this.updateProgressBar('cpu-bar', data.system.cpuUsage);
+                    this.updateProgressBar('memory-bar', data.system.memoryUsage);
+                    this.updateProgressBar('disk-bar', data.system.diskUsage);
+                }
+
+                if (data.healthScore) {
+                    const healthStatus = data.healthScore > 90 ? 'Excellent' : 
+                                       data.healthScore > 70 ? 'Good' : 
+                                       data.healthScore > 50 ? 'Fair' : 'Poor';
+                    this.updateElement('health-status', healthStatus);
+                }
+            }
+
+            updateActivityFeed(activities) {
+                const feed = document.getElementById('activity-feed');
+                if (!feed || !activities) return;
+
+                feed.innerHTML = activities.slice(0, 10).map(activity => `
+                    <div class="activity-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>${activity.icon || '📝'} ${activity.title || activity.type}</strong>
+                                <p class="mb-1 small">${activity.description || activity.message || 'System activity'}</p>
+                                <small class="activity-time">${this.formatDateTime(activity.timestamp)}</small>
+                            </div>
+                            ${activity.metadata?.value ? `<span class="badge bg-success">$${activity.metadata.value}</span>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            updateAlertsFeed(alerts) {
+                const feed = document.getElementById('alerts-feed');
+                if (!feed || !alerts) return;
+
+                feed.innerHTML = alerts.slice(0, 8).map(alert => `
+                    <div class="alert-item alert-${alert.severity}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>${alert.title}</strong>
+                                <p class="mb-1 small">${alert.message}</p>
+                                <small class="activity-time">${this.formatDateTime(alert.timestamp)}</small>
+                            </div>
+                            <div>
+                                ${alert.resolved ? '<span class="badge bg-success">Resolved</span>' : 
+                                  alert.acknowledged ? '<span class="badge bg-warning">Acknowledged</span>' : 
+                                  '<span class="badge bg-danger">Open</span>'}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            updateTopProducts(products) {
+                const container = document.getElementById('top-products');
+                if (!container || !products) return;
+
+                container.innerHTML = products.slice(0, 5).map((product, index) => `
+                    <div class="d-flex justify-content-between align-items-center mb-2 ${index > 0 ? 'pt-2 border-top' : ''}">
+                        <div>
+                            <strong>${product.name}</strong>
+                            <br><small class="text-muted">${product.sku}</small>
+                        </div>
+                        <div class="text-end">
+                            <div class="fw-bold">${this.formatCurrency(product.revenue)}</div>
+                            <small class="text-${product.growth >= 0 ? 'success' : 'danger'}">
+                                ${product.growth >= 0 ? '+' : ''}${product.growth}%
+                            </small>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            initializeCharts() {
+                // Sales Chart
+                const salesCtx = document.getElementById('salesChart');
+                if (salesCtx) {
+                    this.charts.salesChart = new Chart(salesCtx, {
+                        type: 'line',
+                        data: {
+                            labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
+                            datasets: [{
+                                label: 'Sales ($)',
+                                data: Array.from({ length: 24 }, () => Math.random() * 5000 + 1000),
+                                borderColor: 'rgb(0, 102, 204)',
+                                backgroundColor: 'rgba(0, 102, 204, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '$' + value.toLocaleString();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Category Chart
+                const categoryCtx = document.getElementById('categoryChart');
+                if (categoryCtx) {
+                    this.charts.categoryChart = new Chart(categoryCtx, {
+                        type: 'pie',
+                        data: {
+                            labels: ['Electronics', 'Clothing', 'Home & Garden', 'Sports', 'Books'],
+                            datasets: [{
+                                data: [35, 25, 20, 12, 8],
+                                backgroundColor: [
+                                    '#0066cc',
+                                    '#28a745',
+                                    '#ffc107',
+                                    '#dc3545',
+                                    '#17a2b8'
+                                ]
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom'
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            startPeriodicUpdates() {
+                this.updateInterval = setInterval(() => {
+                    if (!this.isConnected) {
+                        this.loadInitialData();
+                    }
+                }, 30000); // Update every 30 seconds if not connected via WebSocket
+            }
+
+            attemptReconnect() {
+                if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    console.log(`🔄 Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+                    
+                    setTimeout(() => {
+                        this.setupWebSocket();
+                    }, Math.pow(2, this.reconnectAttempts) * 1000); // Exponential backoff
+                }
+            }
+
+            updateConnectionStatus(connected) {
+                const status = document.getElementById('connection-status');
+                if (status) {
+                    status.className = `alert alert-sm ${connected ? 'alert-success' : 'alert-danger'}`;
+                    status.innerHTML = `<i class="fas fa-${connected ? 'wifi' : 'wifi-off'}"></i> ${connected ? 'Connected' : 'Disconnected'}`;
+                    status.classList.remove('d-none');
+                    
+                    if (connected) {
+                        setTimeout(() => status.classList.add('d-none'), 3000);
+                    }
+                }
+            }
+
+            showNotification(notification) {
+                const container = document.createElement('div');
+                container.className = 'notification';
+                container.innerHTML = `
+                    <div class="alert alert-${this.getSeverityClass(notification.severity)} alert-dismissible fade show">
+                        <strong>${notification.title || notification.type}</strong>
+                        <p class="mb-1">${notification.message}</p>
+                        <small>${this.formatDateTime(notification.timestamp)}</small>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                `;
+                
+                document.body.appendChild(container);
+                
+                // Auto-remove after 5 seconds
+                setTimeout(() => {
+                    if (container.parentNode) {
+                        container.remove();
+                    }
+                }, 5000);
+            }
+
+            bindEvents() {
+                // Handle page visibility changes
+                document.addEventListener('visibilitychange', () => {
+                    if (document.hidden) {
+                        console.log('📱 Dashboard hidden, reducing updates');
+                    } else {
+                        console.log('📱 Dashboard visible, resuming updates');
+                        this.loadInitialData();
+                    }
+                });
+
+                // Handle window resize
+                window.addEventListener('resize', () => {
+                    Object.values(this.charts).forEach(chart => {
+                        chart.resize();
+                    });
+                });
+            }
+
+            loadDemoData() {
+                const demoData = {
+                    summary: {
+                        totalSales: 125000,
+                        activeCustomers: 2500,
+                        inventoryValue: 850000,
+                        systemHealth: 92
+                    },
+                    sales: {
+                        salesGrowth: { daily: 12.5 },
+                        topProducts: [
+                            { name: 'Demo Product A', sku: 'DEMO-001', revenue: 25000, growth: 15.2 },
+                            { name: 'Demo Product B', sku: 'DEMO-002', revenue: 18000, growth: 8.7 },
+                            { name: 'Demo Product C', sku: 'DEMO-003', revenue: 12000, growth: -2.1 }
+                        ]
+                    },
+                    inventory: {
+                        summary: {
+                            totalItems: 5000,
+                            lowStockItems: 25,
+                            outOfStockItems: 8
+                        }
+                    },
+                    customers: {
+                        summary: {
+                            totalCustomers: 15000,
+                            newCustomers: 45,
+                            retentionRate: 85.5
+                        },
+                        conversionRate: 3.2
+                    },
+                    performance: {
+                        system: {
+                            cpuUsage: 35.2,
+                            memoryUsage: 68.5,
+                            diskUsage: 45.8
+                        },
+                        healthScore: 92
+                    },
+                    activity: [
+                        { icon: '🛒', title: 'New Order', description: 'Order #12345 placed', timestamp: new Date().toISOString(), metadata: { value: 85 } },
+                        { icon: '👤', title: 'User Registration', description: 'New user registered', timestamp: new Date(Date.now() - 300000).toISOString() },
+                        { icon: '📦', title: 'Inventory Update', description: 'Stock levels updated', timestamp: new Date(Date.now() - 600000).toISOString() }
+                    ],
+                    alerts: [
+                        { title: 'Low Stock Alert', message: 'Product XYZ is running low', severity: 'warning', timestamp: new Date().toISOString(), resolved: false, acknowledged: false },
+                        { title: 'System Update', message: 'Scheduled maintenance completed', severity: 'low', timestamp: new Date(Date.now() - 900000).toISOString(), resolved: true, acknowledged: true }
+                    ]
+                };
+
+                this.updateDashboard(demoData);
+            }
+
+            // Utility methods
+            updateElement(id, value) {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.textContent = value;
+                }
+            }
+
+            updateProgressBar(id, value) {
+                const bar = document.getElementById(id);
+                if (bar) {
+                    bar.style.width = Math.min(100, Math.max(0, parseFloat(value))) + '%';
+                }
+            }
+
+            updateChangeIndicator(id, value) {
+                const element = document.getElementById(id);
+                if (element) {
+                    const numValue = parseFloat(value);
+                    element.textContent = (numValue >= 0 ? '+' : '') + numValue + '%';
+                    element.className = `metric-change ${numValue >= 0 ? 'positive' : 'negative'}`;
+                }
+            }
+
+            updateLastUpdatedTime() {
+                const element = document.getElementById('update-time');
+                if (element) {
+                    element.textContent = new Date().toLocaleTimeString();
+                }
+            }
+
+            formatCurrency(value) {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
+                }).format(value || 0);
+            }
+
+            formatNumber(value) {
+                return new Intl.NumberFormat('en-US').format(value || 0);
+            }
+
+            formatDateTime(dateString) {
+                return new Date(dateString).toLocaleString();
+            }
+
+            getSeverityClass(severity) {
+                const map = {
+                    'error': 'danger',
+                    'warning': 'warning',
+                    'info': 'info',
+                    'success': 'success'
+                };
+                return map[severity] || 'info';
+            }
+        }
+
+        // Global functions
+        function toggleTheme() {
+            const body = document.body;
+            const icon = document.getElementById('theme-icon');
+            
+            if (body.classList.contains('dark-theme')) {
+                body.classList.remove('dark-theme');
+                icon.className = 'fas fa-moon';
+                localStorage.setItem('dashboard-theme', 'light');
+            } else {
+                body.classList.add('dark-theme');
+                icon.className = 'fas fa-sun';
+                localStorage.setItem('dashboard-theme', 'dark');
+            }
+        }
+
+        async function exportData(format) {
+            try {
+                const response = await fetch(`/api/dashboard/export/${format}`);
+                
+                if (format === 'json') {
+                    const data = await response.json();
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `dashboard-export-${new Date().toISOString().split('T')[0]}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                } else if (format === 'csv') {
+                    const csvData = await response.text();
+                    const blob = new Blob([csvData], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `dashboard-export-${new Date().toISOString().split('T')[0]}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                }
+                
+                console.log(`✅ Data exported as ${format.toUpperCase()}`);
+            } catch (error) {
+                console.error('❌ Export failed:', error);
+                alert('Export failed. Please try again.');
+            }
+        }
+
+        function printDashboard() {
+            window.print();
+        }
+
+        // Initialize dashboard when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            window.dashboard = new DashboardApp();
+        });
+
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (window.dashboard && window.dashboard.websocket) {
+                window.dashboard.websocket.close();
+            }
+        });
+    </script>
+</body>
+</html>

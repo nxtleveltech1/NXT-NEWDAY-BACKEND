@@ -40,15 +40,3 @@ if (process.env.SUPPRESS_TEST_LOGS !== 'false') {
     debug: console.debug,
   };
 }
-
-// Global test timeout
-jest.setTimeout(30000);
-
-// Clean up after tests
-afterAll(async () => {
-  // Close any open database connections
-  const { pool } = await import('./src/config/database.js');
-  if (pool) {
-    await pool.end();
-  }
-});

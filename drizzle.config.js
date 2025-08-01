@@ -13,9 +13,9 @@ export default {
   // Dialect for PostgreSQL
   dialect: 'postgresql',
   
-  // Database connection configuration
+  // Database connection configuration - NILEDB ONLY
   dbCredentials: {
-    url: process.env.DATABASE_URL,
+    url: 'postgres://01985dad-5492-710e-a575-76c9bc6f3c98:216d1021-70e6-420a-b7c7-c9b8ff3646fc@eu-central-1.db.thenile.dev/NILEDB',
   },
   
   // Additional options for better output
