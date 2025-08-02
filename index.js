@@ -135,6 +135,17 @@ routes.set('GET /health', async () => {
 });
 
 // Performance metrics endpoint
+routes.set('GET /', () => ({
+  status: 200,
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    service: 'NXT API',
+    version: process.env.npm_package_version || '1.0.0',
+    timestamp: new Date().toISOString()
+  })
+}));
+
+// Performance metrics endpoint
 routes.set('GET /metrics', () => {
   const uptime = Date.now() - startTime;
   const avgResponseTime = requestCount > 0 ? totalResponseTime / requestCount : 0;
