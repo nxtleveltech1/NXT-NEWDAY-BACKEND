@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   # Main Application
   nxt-backend:
@@ -7,17 +9,8 @@ services:
     restart: unless-stopped
     ports:
       - "4000:4000"
-    environment:
-      - NODE_ENV=production
-      - PORT=4000
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - NEXT_PUBLIC_STACK_PROJECT_ID=${NEXT_PUBLIC_STACK_PROJECT_ID}
-      - NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY=${NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY}
-      - STACK_SECRET_SERVER_KEY=${STACK_SECRET_SERVER_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - JWT_SECRET=${JWT_SECRET}
-      - SESSION_SECRET=${SESSION_SECRET}
+    env_file:
+      - ./.backend.env            # <<< easier than 20 inline vars
     depends_on:
       - redis
     networks:
@@ -97,8 +90,6 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
 
   # Metrics Dashboard
   grafana:
