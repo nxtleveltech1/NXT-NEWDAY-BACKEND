@@ -167,6 +167,35 @@ routes.set('GET /metrics', () => {
   };
 });
 
+// Dashboard health endpoint
+routes.set('GET /api/dashboard/health', async () => {
+  try {
+    const nileStatus = await testNileConnection();
+    return {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        success: true,
+        service: 'dashboard',
+        database: 'NILEDB_PostgreSQL',
+        niledb_status: nileStatus.success,
+        timestamp: new Date().toISOString()
+      })
+    };
+  } catch (error) {
+    return {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        success: false,
+        error: 'Health check failed',
+        message: error.message,
+        timestamp: new Date().toISOString()
+      })
+    };
+  }
+});
+
 // Suppliers endpoint - NILEDB PostgreSQL
 routes.set('GET /api/suppliers', async () => {
   try {
