@@ -6,10 +6,10 @@
  * Ultra-high performance with comprehensive error handling
  */
 
-import { createServer } from 'http';
+import { createServer } from 'node:http';
 import { createClient } from 'redis';
-import { cpus } from 'os';
-import { performance } from 'perf_hooks';
+import { cpus } from 'node:os';
+import { performance } from 'node:perf_hooks';
 import dotenv from 'dotenv';
 import fetch from 'node-fetch';
 
