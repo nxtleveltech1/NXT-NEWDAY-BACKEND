@@ -1,17 +1,16 @@
-version: '3.7'
+version: '3.8'
 
 services:
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile # or Dockerfile.production
+    build: .
     container_name: nxt-api
-    env_file: .backend.env
+    env_file:
+      - .backend.env        # your secrets
     ports:
-      - '4000:4000'
+      - "4000:4000"
     restart: unless-stopped
     healthcheck:
-      test: ['CMD-SHELL', 'curl -f http://localhost:4000/health || exit 1']
+      test: ["CMD-SHELL", "curl -f http://localhost:4000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
