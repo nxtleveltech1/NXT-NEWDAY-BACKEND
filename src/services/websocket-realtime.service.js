@@ -14,7 +14,14 @@
  */
 
 import { Server as SocketIOServer } from 'socket.io';
-import { createAdapter } from '@socket.io/redis-adapter';
+// Redis adapter - optional for scaling
+let createAdapter = null;
+try {
+    const redisAdapter = await import('@socket.io/redis-adapter');
+    createAdapter = redisAdapter.createAdapter;
+} catch (error) {
+    console.warn('Redis adapter not available, using memory adapter');
+}
 import { EventEmitter } from 'events';
 import jwt from 'jsonwebtoken';
 import Redis from 'redis';

@@ -2,11 +2,11 @@ import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 
 /**
- * NileDB Configuration
+ * NileDB Configuration - PRODUCTION ONLY
  * PostgreSQL connection for real-time dashboard data
  */
 
-const NILEDB_CONNECTION_STRING = 'postgres://01985dad-5492-710e-a575-76c9bc6f3c98:216d1021-70e6-420a-b7c7-c9b8ff3646fc@eu-central-1.db.thenile.dev/NILEDB';
+const NILEDB_CONNECTION_STRING = 'postgres://019864b1-5486-74e4-b499-5c3c20e5d483:933d9c72-25b1-4078-b0f4-ca227857b75a@eu-central-1.db.thenile.dev:5432/NILEDB';
 
 // Create NileDB connection pool
 const nilePool = new Pool({
@@ -83,6 +83,15 @@ export function getNileConnectionStatus() {
 export async function initializeNileDB() {
   const client = await nilePool.connect();
   try {
+    // Update existing suppliers to ensure is_active is not null
+    try {
+      await client.query('UPDATE suppliers SET is_active = true WHERE is_active IS NULL');
+      console.log('✅ Updated existing suppliers is_active field');
+    } catch (updateError) {
+      // If update fails, suppliers table might not exist yet, which is fine
+      console.log('ℹ️ Suppliers table update skipped (table may not exist yet)');
+    }
+
     // Create dashboard data tables
     await client.query(`
       CREATE TABLE IF NOT EXISTS dashboard_metrics (
@@ -121,6 +130,11 @@ export async function initializeNileDB() {
     `);
 
     // Create indexes for better performance
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_suppliers_active_name 
+      ON suppliers (is_active, name);
+    `);
+
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_dashboard_metrics_name_time 
       ON dashboard_metrics (metric_name, timestamp DESC);
@@ -247,8 +261,8 @@ export async function storeRealTimeData(dataType, payload, expiresInHours = 1) {
   const client = await nilePool.connect();
   try {
     const result = await client.query(
-      'INSERT INTO real_time_data (data_type, data_payload, expires_at) VALUES ($1, $2, NOW() + INTERVAL \'$3 hours\') RETURNING *',
-      [dataType, JSON.stringify(payload), expiresInHours]
+      `INSERT INTO real_time_data (data_type, data_payload, expires_at) VALUES ($1, $2, NOW() + INTERVAL '${expiresInHours} hours') RETURNING *`,
+      [dataType, JSON.stringify(payload)]
     );
     return { success: true, data: result.rows[0] };
   } catch (error) {

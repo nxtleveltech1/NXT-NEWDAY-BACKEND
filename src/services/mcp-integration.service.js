@@ -1,4 +1,4 @@
-import { mysql_pool } from '../config/mysql.config.js';
+import { nilePool, nileDb } from '../config/niledb.config.js';
 
 /**
  * MCP Integration Service
@@ -29,8 +29,8 @@ class MCPIntegrationService {
       // Initialize Ruv Swarm MCP connection  
       await this.initializeRuvSwarmConnection();
       
-      // Initialize database MCP wrapper
-      await this.initializeDatabaseMCP();
+      // Initialize NILEDB PostgreSQL MCP wrapper
+      await this.initializeNileDBMCP();
       
       console.log('✅ MCP connections initialized successfully');
       return true;
@@ -111,32 +111,33 @@ class MCPIntegrationService {
   }
 
   /**
-   * Initialize Database MCP wrapper
+   * Initialize NILEDB PostgreSQL MCP wrapper
    */
-  async initializeDatabaseMCP() {
+  async initializeNileDBMCP() {
     try {
       const connection = {
-        name: 'mysql-mcp',
-        status: mysql_pool ? 'active' : 'inactive',
+        name: 'niledb-mcp',
+        status: nilePool ? 'active' : 'inactive',
         endpoints: {
-          query: 'mysql://query',
-          transaction: 'mysql://transaction',
-          health: 'mysql://health',
-          stats: 'mysql://stats'
+          query: 'postgresql://query',
+          transaction: 'postgresql://transaction',
+          health: 'postgresql://health',
+          stats: 'postgresql://stats'
         },
         capabilities: [
           'database_queries',
           'transaction_management',
           'connection_pooling',
-          'health_monitoring'
+          'health_monitoring',
+          'postgresql_features'
         ],
         lastHeartbeat: new Date()
       };
       
-      this.connections.set('mysql-mcp', connection);
-      this.serverStatus.set('mysql-mcp', mysql_pool ? 'connected' : 'disconnected');
+      this.connections.set('niledb-mcp', connection);
+      this.serverStatus.set('niledb-mcp', nilePool ? 'connected' : 'disconnected');
       
-      console.log(`✅ Database MCP wrapper ${mysql_pool ? 'established' : 'configured (MySQL not available)'}`);
+      console.log(`✅ NILEDB PostgreSQL MCP wrapper ${nilePool ? 'established' : 'configured (NILEDB not available)'}`);
       return connection;
     } catch (error) {
       console.error('❌ Database MCP wrapper failed:', error);
@@ -172,8 +173,8 @@ class MCPIntegrationService {
         case 'ruv-swarm':
           result = await this.executeRuvSwarmRequest(endpoint, params);
           break;
-        case 'mysql-mcp':
-          result = await this.executeMySQLRequest(endpoint, params);
+        case 'niledb-mcp':
+          result = await this.executePostgreSQLRequest(endpoint, params);
           break;
         default:
           throw new Error(`Unsupported MCP server: ${serverName}`);
@@ -248,33 +249,34 @@ class MCPIntegrationService {
   }
 
   /**
-   * Execute MySQL MCP request
+   * Execute PostgreSQL MCP request
    */
-  async executeMySQLRequest(endpoint, params) {
-    if (!mysql_pool) {
-      throw new Error('MySQL not configured');
+  async executePostgreSQLRequest(endpoint, params) {
+    if (!nilePool) {
+      throw new Error('NILEDB PostgreSQL not configured');
     }
     
-    const connection = await mysql_pool.getConnection();
+    const client = await nilePool.connect();
     
     try {
       switch (endpoint) {
         case 'query':
-          const [results] = await connection.execute(params.sql, params.values || []);
-          return results;
+          const results = await client.query(params.sql, params.values || []);
+          return results.rows;
         case 'health':
-          const [health] = await connection.execute('SELECT 1 as healthy');
-          return { healthy: true, database: 'NXTLEVELTECH' };
+          const health = await client.query('SELECT 1 as healthy');
+          return { healthy: true, database: 'NILEDB', type: 'PostgreSQL' };
         case 'stats':
           return {
-            active_connections: mysql_pool._allConnections?.length || 0,
-            idle_connections: mysql_pool._freeConnections?.length || 0
+            total_connections: nilePool.totalCount || 0,
+            idle_connections: nilePool.idleCount || 0,
+            waiting_connections: nilePool.waitingCount || 0
           };
         default:
-          throw new Error(`Unknown MySQL endpoint: ${endpoint}`);
+          throw new Error(`Unknown PostgreSQL endpoint: ${endpoint}`);
       }
     } finally {
-      connection.release();
+      client.release();
     }
   }
 

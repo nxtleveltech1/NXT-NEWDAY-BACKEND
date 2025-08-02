@@ -238,11 +238,11 @@ router.post('/ruv-swarm/orchestrate', async (req, res) => {
 });
 
 /**
- * MySQL MCP specific endpoints
+ * PostgreSQL/NILEDB MCP specific endpoints
  */
 
-// Execute MySQL query through MCP
-router.post('/mysql/query', async (req, res) => {
+// Execute PostgreSQL query through MCP
+router.post('/postgresql/query', async (req, res) => {
   try {
     const { sql, values = [] } = req.body;
     
@@ -254,7 +254,7 @@ router.post('/mysql/query', async (req, res) => {
       });
     }
     
-    const result = await mcpIntegrationService.executeMCPRequest('mysql-mcp', 'query', {
+    const result = await mcpIntegrationService.executeMCPRequest('niledb-mcp', 'query', {
       sql,
       values
     });
@@ -269,10 +269,10 @@ router.post('/mysql/query', async (req, res) => {
   }
 });
 
-// Get MySQL health through MCP
-router.get('/mysql/health', async (req, res) => {
+// Get PostgreSQL health through MCP
+router.get('/postgresql/health', async (req, res) => {
   try {
-    const result = await mcpIntegrationService.executeMCPRequest('mysql-mcp', 'health');
+    const result = await mcpIntegrationService.executeMCPRequest('niledb-mcp', 'health');
     res.json(result);
   } catch (error) {
     res.status(500).json({
@@ -283,10 +283,10 @@ router.get('/mysql/health', async (req, res) => {
   }
 });
 
-// Get MySQL stats through MCP
-router.get('/mysql/stats', async (req, res) => {
+// Get PostgreSQL stats through MCP
+router.get('/postgresql/stats', async (req, res) => {
   try {
-    const result = await mcpIntegrationService.executeMCPRequest('mysql-mcp', 'stats');
+    const result = await mcpIntegrationService.executeMCPRequest('niledb-mcp', 'stats');
     res.json(result);
   } catch (error) {
     res.status(500).json({

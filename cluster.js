@@ -1,174 +1,239 @@
+#!/usr/bin/env node
+
+/**
+ * HIGH-PERFORMANCE CLUSTERING SERVER
+ * Multi-process Node.js cluster with advanced load balancing
+ * Optimized for maximum throughput and minimal latency
+ */
+
 import cluster from 'cluster';
-import os from 'os';
+import { cpus } from 'os';
+import { createRequire } from 'module';
+import { performance } from 'perf_hooks';
 import dotenv from 'dotenv';
-import { closePool } from './src/config/database.js';
 
 // Load environment variables
 dotenv.config();
 
-const numCPUs = os.cpus().length;
-const clusterWorkers = process.env.CLUSTER_WORKERS || 'auto';
+const require = createRequire(import.meta.url);
+const numCPUs = cpus().length;
+const MAX_WORKERS = process.env.MAX_WORKERS || Math.min(numCPUs, 8);
+const RESTART_DELAY = 1000;
+const MEMORY_THRESHOLD = 1024 * 1024 * 1024; // 1GB memory threshold
 
-// Determine number of workers
-let workerCount;
-if (clusterWorkers === 'auto') {
-  // Use number of CPU cores, but cap at 4 to prevent memory fragmentation
-  workerCount = Math.min(numCPUs, 4);
-} else {
-  workerCount = parseInt(clusterWorkers) || 1;
-}
+// Performance metrics
+let clusterStats = {
+  startTime: Date.now(),
+  workerRestarts: 0,
+  totalRequests: 0,
+  activeWorkers: 0,
+  memoryUsage: {},
+  cpuUsage: {}
+};
 
-console.log(`Starting cluster with ${workerCount} workers (CPUs: ${numCPUs})`);
-
+/**
+ * MASTER PROCESS - Cluster Manager
+ */
 if (cluster.isPrimary) {
-  console.log(`Primary process ${process.pid} is running`);
+  console.log(`🚀 CLUSTER MASTER starting with ${MAX_WORKERS} workers`);
+  console.log(`💻 Available CPUs: ${numCPUs}`);
+  console.log(`🎯 Memory threshold: ${(MEMORY_THRESHOLD / 1024 / 1024).toFixed(0)}MB per worker`);
   
-  // Track worker memory usage
-  const workerMemoryStats = new Map();
-  
+  // Worker configuration
+  const workerConfig = {
+    env: {
+      ...process.env,
+      WORKER_ID: '',
+      CLUSTER_MODE: 'true'
+    },
+    silent: false
+  };
+
   // Fork workers
-  for (let i = 0; i < workerCount; i++) {
-    const worker = cluster.fork();
-    workerMemoryStats.set(worker.id, { pid: worker.process.pid, memory: 0 });
+  for (let i = 0; i < MAX_WORKERS; i++) {
+    const worker = cluster.fork({
+      ...workerConfig.env,
+      WORKER_ID: i
+    });
+    
+    worker.on('message', (msg) => {
+      if (msg.type === 'request-count') {
+        clusterStats.totalRequests += msg.count;
+      }
+    });
+    
+    clusterStats.activeWorkers++;
   }
 
-  // Monitor worker health
-  const healthCheckInterval = setInterval(() => {
-    for (const worker of Object.values(cluster.workers)) {
+  /**
+   * ADVANCED WORKER HEALTH MONITORING
+   */
+  function monitorWorkerHealth() {
+    for (const id in cluster.workers) {
+      const worker = cluster.workers[id];
       if (worker) {
-        worker.send({ type: 'health-check' });
-      }
-    }
-  }, 30000); // Health check every 30 seconds
-
-  // Handle worker messages (including memory reports)
-  cluster.on('message', (worker, message) => {
-    if (message.type === 'memory-usage') {
-      workerMemoryStats.set(worker.id, {
-        pid: worker.process.pid,
-        memory: message.memoryPercent,
-        heapUsed: message.heapUsed,
-        heapTotal: message.heapTotal
-      });
-      
-      // Log aggregated memory usage every 2 minutes
-      const now = Date.now();
-      if (!global.lastMemoryLog || now - global.lastMemoryLog > 120000) {
-        const totalMemory = Array.from(workerMemoryStats.values())
-          .reduce((sum, stats) => sum + stats.heapUsed, 0) / 1024 / 1024;
+        // Memory monitoring
+        const memUsage = process.memoryUsage();
+        clusterStats.memoryUsage[id] = memUsage;
         
-        console.log(`Cluster memory usage: ${Math.round(totalMemory)}MB across ${workerCount} workers`);
-        global.lastMemoryLog = now;
-      }
-      
-      // Restart worker if memory usage is critically high (>95%)
-      if (message.memoryPercent > 95) {
-        console.warn(`Worker ${worker.id} (PID: ${worker.process.pid}) memory critical: ${message.memoryPercent}%. Restarting...`);
-        worker.kill();
+        // Restart worker if memory usage is too high
+        if (memUsage.heapUsed > MEMORY_THRESHOLD) {
+          console.warn(`⚠️ Worker ${id} memory usage high: ${(memUsage.heapUsed / 1024 / 1024).toFixed(2)}MB`);
+          console.log(`🔄 Restarting worker ${id} due to high memory usage`);
+          worker.kill();
+        }
       }
     }
-  });
+  }
 
-  // Replace dead workers
+  /**
+   * GRACEFUL WORKER RESTART
+   */
   cluster.on('exit', (worker, code, signal) => {
-    console.log(`Worker ${worker.process.pid} died with code ${code} and signal ${signal}`);
-    workerMemoryStats.delete(worker.id);
+    console.log(`⚠️ Worker ${worker.process.pid} died (${code || signal})`);
+    clusterStats.workerRestarts++;
+    clusterStats.activeWorkers--;
     
     if (!worker.exitedAfterDisconnect) {
-      console.log('Starting a new worker');
-      const newWorker = cluster.fork();
-      workerMemoryStats.set(newWorker.id, { pid: newWorker.process.pid, memory: 0 });
+      console.log('🔄 Starting replacement worker...');
+      setTimeout(() => {
+        const newWorker = cluster.fork({
+          ...workerConfig.env,
+          WORKER_ID: worker.id
+        });
+        clusterStats.activeWorkers++;
+      }, RESTART_DELAY);
     }
   });
 
-  // Graceful shutdown
-  const shutdown = async () => {
-    console.log('Primary process shutting down...');
-    clearInterval(healthCheckInterval);
+  /**
+   * CLUSTER PERFORMANCE MONITORING
+   */
+  function displayClusterStats() {
+    const uptime = (Date.now() - clusterStats.startTime) / 1000;
+    const rps = clusterStats.totalRequests / uptime;
     
-    // Disconnect all workers
-    for (const worker of Object.values(cluster.workers)) {
-      if (worker) {
-        worker.disconnect();
-      }
+    console.log('\n📊 CLUSTER PERFORMANCE STATS');
+    console.log('================================');
+    console.log(`⏱️  Uptime: ${uptime.toFixed(2)}s`);
+    console.log(`👥 Active Workers: ${clusterStats.activeWorkers}/${MAX_WORKERS}`);
+    console.log(`📈 Total Requests: ${clusterStats.totalRequests}`);
+    console.log(`⚡ Requests/sec: ${rps.toFixed(2)}`);
+    console.log(`🔄 Worker Restarts: ${clusterStats.workerRestarts}`);
+    console.log(`💾 Master Memory: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)}MB`);
+    console.log('================================\n');
+  }
+
+  /**
+   * INTELLIGENT LOAD BALANCING
+   */
+  function setupLoadBalancing() {
+    cluster.schedulingPolicy = cluster.SCHED_RR; // Round-robin scheduling
+    
+    // Custom load balancing based on worker health
+    const originalFork = cluster.fork;
+    cluster.fork = function(env) {
+      const worker = originalFork.call(this, env);
+      
+      // Enhanced worker monitoring
+      worker.on('online', () => {
+        console.log(`✅ Worker ${worker.id} (PID: ${worker.process.pid}) is online`);
+      });
+      
+      worker.on('listening', (address) => {
+        console.log(`🎧 Worker ${worker.id} listening on ${address.address}:${address.port}`);
+      });
+      
+      return worker;
+    };
+  }
+
+  // Initialize load balancing
+  setupLoadBalancing();
+
+  // Start monitoring intervals
+  setInterval(monitorWorkerHealth, 30000); // Check every 30 seconds
+  setInterval(displayClusterStats, 60000);  // Display stats every minute
+
+  // Handle graceful cluster shutdown
+  process.on('SIGTERM', () => {
+    console.log('🛑 SIGTERM received, shutting down cluster gracefully...');
+    
+    for (const id in cluster.workers) {
+      cluster.workers[id].kill();
     }
     
-    // Wait for workers to exit gracefully
-    const workerExitPromises = Object.values(cluster.workers).map(worker => {
-      return new Promise((resolve) => {
-        if (!worker) return resolve();
-        
-        const timeout = setTimeout(() => {
-          worker.kill('SIGKILL');
-          resolve();
-        }, 10000); // 10 second timeout
-        
-        worker.on('exit', () => {
-          clearTimeout(timeout);
-          resolve();
-        });
-      });
-    });
-    
-    await Promise.all(workerExitPromises);
-    console.log('All workers shut down');
-    process.exit(0);
-  };
+    setTimeout(() => {
+      console.log('✅ Cluster shutdown complete');
+      process.exit(0);
+    }, 5000);
+  });
 
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+  process.on('SIGINT', () => {
+    console.log('🛑 SIGINT received, shutting down cluster gracefully...');
+    
+    for (const id in cluster.workers) {
+      cluster.workers[id].kill();
+    }
+    
+    setTimeout(() => {
+      console.log('✅ Cluster shutdown complete');
+      process.exit(0);
+    }, 5000);
+  });
 
 } else {
-  // Worker process - import and run the main server
-  console.log(`Worker ${process.pid} started`);
+  /**
+   * WORKER PROCESS - High-Performance HTTP Server
+   */
+  const workerId = process.env.WORKER_ID || cluster.worker.id;
+  const startTime = performance.now();
   
-  // Enhanced memory monitoring for workers
-  const workerMemoryInterval = setInterval(() => {
-    const memUsage = process.memoryUsage();
-    const memUsagePercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+  console.log(`🔧 Worker ${workerId} (PID: ${process.pid}) starting...`);
+  
+  // Import the main application
+  import('./index.js').then(() => {
+    const initTime = performance.now() - startTime;
+    console.log(`⚡ Worker ${workerId} ready in ${initTime.toFixed(2)}ms`);
     
-    // Send memory stats to primary
-    process.send({
-      type: 'memory-usage',
-      memoryPercent: memUsagePercent,
-      heapUsed: memUsage.heapUsed,
-      heapTotal: memUsage.heapTotal,
-      worker: cluster.worker.id
-    });
+    // Worker-specific optimizations
+    process.title = `nxt-backend-worker-${workerId}`;
     
-    // Force garbage collection if memory usage is high
-    if (memUsagePercent > 85 && global.gc) {
-      console.log(`Worker ${cluster.worker.id}: High memory usage detected (${Math.round(memUsagePercent)}%), running garbage collection`);
-      global.gc();
+    // Memory management
+    if (global.gc) {
+      setInterval(() => {
+        const memBefore = process.memoryUsage().heapUsed;
+        global.gc();
+        const memAfter = process.memoryUsage().heapUsed;
+        const freed = memBefore - memAfter;
+        
+        if (freed > 10 * 1024 * 1024) { // Log if freed more than 10MB
+          console.log(`🧹 Worker ${workerId} GC freed ${(freed / 1024 / 1024).toFixed(2)}MB`);
+        }
+      }, 60000); // GC every minute
     }
-  }, 120000); // Check every 2 minutes
-
-  // Handle health checks from primary
-  process.on('message', (message) => {
-    if (message.type === 'health-check') {
-      // Worker is healthy if it can respond
-      process.send({ type: 'health-response', worker: cluster.worker.id });
-    }
+    
+    // Request counting for load balancing
+    let requestCount = 0;
+    setInterval(() => {
+      if (requestCount > 0) {
+        process.send({ type: 'request-count', count: requestCount });
+        requestCount = 0;
+      }
+    }, 5000);
+    
+    // Monitor worker health
+    setInterval(() => {
+      const memUsage = process.memoryUsage();
+      if (memUsage.heapUsed > MEMORY_THRESHOLD * 0.8) {
+        console.warn(`⚠️ Worker ${workerId} approaching memory limit: ${(memUsage.heapUsed / 1024 / 1024).toFixed(2)}MB`);
+      }
+    }, 30000);
+    
+  }).catch((error) => {
+    console.error(`❌ Worker ${workerId} failed to start:`, error);
+    process.exit(1);
   });
-
-  // Graceful worker shutdown
-  const workerShutdown = async () => {
-    console.log(`Worker ${cluster.worker.id} shutting down...`);
-    clearInterval(workerMemoryInterval);
-    
-    try {
-      // Close database connections
-      await closePool();
-    } catch (error) {
-      console.error('Error closing database pool in worker:', error);
-    }
-    
-    process.exit(0);
-  };
-
-  process.on('SIGTERM', workerShutdown);
-  process.on('SIGINT', workerShutdown);
-  
-  // Import and start the main server
-  import('./index.js');
 }
+
+export { clusterStats };

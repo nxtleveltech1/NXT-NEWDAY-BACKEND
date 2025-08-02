@@ -1,10 +1,10 @@
-// NILEDB Configuration - THE ONLY DATABASE
+// NILEDB Configuration - PRODUCTION ONLY
 module.exports = {
   connection: {
     host: 'eu-central-1.db.thenile.dev',
     database: 'NILEDB',
-    user: '01985dad-5492-710e-a575-76c9bc6f3c98',
-    password: '216d1021-70e6-420a-b7c7-c9b8ff3646fc',
+    user: '019864b1-5486-74e4-b499-5c3c20e5d483',
+    password: '933d9c72-25b1-4078-b0f4-ca227857b75a',
     port: 5432,
     ssl: {
       rejectUnauthorized: false

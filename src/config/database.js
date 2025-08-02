@@ -2,36 +2,58 @@ import { config } from 'dotenv';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { eq, sql } from 'drizzle-orm';
-import { Pool } from 'pg';
 import * as schema from '../db/schema.js';
+
+// Import NILEDB PostgreSQL configuration
+import { nilePool, nileDb } from './niledb.config.js';
 
 // Load environment variables
 config();
 
-// Validate required environment variables
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is required');
+// Use NILEDB PostgreSQL as primary database
+// Fallback to DATABASE_URL if NILEDB is not available
+let primaryDb;
+let primaryPool;
+
+try {
+  // Try to use NILEDB first
+  if (nilePool && nileDb) {
+    primaryDb = nileDb;
+    primaryPool = nilePool;
+    console.log('✅ Using NILEDB PostgreSQL as primary database');
+  } else {
+    throw new Error('NILEDB not available, falling back to DATABASE_URL');
+  }
+} catch (error) {
+  console.warn('⚠️ NILEDB not available, using DATABASE_URL fallback:', error.message);
+  
+  // Fallback to DATABASE_URL
+  if (!process.env.DATABASE_URL) {
+    throw new Error('Neither NILEDB nor DATABASE_URL is available');
+  }
+  
+  const { Pool } = require('pg');
+  primaryPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+  });
+  
+  primaryDb = drizzle(primaryPool, {
+    logger: process.env.NODE_ENV === 'development' && process.env.DB_LOGGING !== 'false',
+    schema
+  });
+  
+  console.log('✅ Using DATABASE_URL PostgreSQL as fallback database');
 }
 
-// Create PostgreSQL connection pool
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-});
-
-// Create Drizzle ORM instance with PostgreSQL adapter
-export const db = drizzle(pool, {
-  logger: process.env.NODE_ENV === 'development' && process.env.DB_LOGGING !== 'false',
-  schema
-});
+// Export the primary database connection
+export const db = primaryDb;
+export const pool = primaryPool;
 
 // Export sql utility for raw queries
 export { sql };
-
-// Export pool for backward compatibility
-export { pool };
 
 // Export only the specific schemas that were originally exported
 export {

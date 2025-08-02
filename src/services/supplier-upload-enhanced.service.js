@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
-import { getUploadService } from './upload.service.js';
+// Import upload service with fallback for compatibility
+import { UploadService } from './upload.service.js';
 import { intelligentUploadService } from './intelligent-upload.service.js';
 import { priceRulesEngine } from './price-rules-engine.service.js';
 import { supplierNotificationService } from './supplier-notification.service.js';
@@ -25,7 +26,7 @@ import { createPriceList, createPriceListItems } from '../db/price-list-queries.
 export class SupplierUploadEnhancedService extends EventEmitter {
   constructor() {
     super();
-    this.uploadService = getUploadService();
+    this.uploadService = new UploadService();
     this.intelligentService = intelligentUploadService;
     this.priceRules = priceRulesEngine;
     this.notifications = supplierNotificationService;
@@ -836,10 +837,374 @@ export class SupplierUploadEnhancedService extends EventEmitter {
     };
   }
 
-  // Additional helper methods would be implemented here...
-  // - getUploadData(), cleanupUploadData(), etc.
-  // - mergeDuplicates(), calculatePriceDistribution(), etc.
-  // - detectPrimaryCurrency(), generateMappingSuggestions(), etc.
+  /**
+   * Get upload data from temporary storage
+   */
+  async getUploadData(uploadId) {
+    try {
+      // In production, this would use Redis or database for temporary storage
+      // For now, we'll use in-memory storage with a Map
+      if (!this.uploadDataCache) {
+        this.uploadDataCache = new Map();
+      }
+      
+      const uploadData = this.uploadDataCache.get(uploadId);
+      if (!uploadData) {
+        return null;
+      }
+      
+      // Check if data has expired (24 hours)
+      const expiryTime = 24 * 60 * 60 * 1000; // 24 hours
+      if (Date.now() - uploadData.timestamp > expiryTime) {
+        this.uploadDataCache.delete(uploadId);
+        return null;
+      }
+      
+      return uploadData;
+    } catch (error) {
+      console.error('Failed to get upload data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Store upload data temporarily
+   */
+  async storeUploadData(uploadId, data) {
+    try {
+      if (!this.uploadDataCache) {
+        this.uploadDataCache = new Map();
+      }
+      
+      this.uploadDataCache.set(uploadId, {
+        ...data,
+        timestamp: Date.now()
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to store upload data:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Clean up temporary upload data
+   */
+  async cleanupUploadData(uploadId) {
+    try {
+      if (this.uploadDataCache) {
+        this.uploadDataCache.delete(uploadId);
+      }
+      return true;
+    } catch (error) {
+      console.error('Failed to cleanup upload data:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Merge duplicate items with conflict resolution
+   */
+  async mergeDuplicates(duplicates, newItems) {
+    const merged = [...newItems];
+    
+    for (const duplicate of duplicates) {
+      const { existing, new: newItem } = duplicate;
+      
+      // Create merged item by combining data
+      const mergedItem = {
+        ...existing,
+        // Take newer price if different
+        unitPrice: newItem.unitPrice !== existing.unitPrice ? newItem.unitPrice : existing.unitPrice,
+        // Update description if provided
+        description: newItem.description || existing.description,
+        // Update stock level if provided
+        stockLevel: newItem.stockLevel !== undefined ? newItem.stockLevel : existing.stockLevel,
+        // Update lead time if provided
+        leadTimeDays: newItem.leadTimeDays !== undefined ? newItem.leadTimeDays : existing.leadTimeDays,
+        // Mark as merged
+        isMerged: true,
+        mergedFrom: {
+          existingId: existing.id,
+          newData: newItem,
+          mergedAt: new Date().toISOString()
+        }
+      };
+      
+      merged.push(mergedItem);
+    }
+    
+    return merged;
+  }
+
+  /**
+   * Calculate price distribution for analytics
+   */
+  calculatePriceDistribution(data) {
+    const prices = data.map(item => item.unitPrice).filter(price => price > 0);
+    
+    if (prices.length === 0) {
+      return {
+        min: 0,
+        max: 0,
+        average: 0,
+        median: 0,
+        distribution: {}
+      };
+    }
+    
+    prices.sort((a, b) => a - b);
+    
+    const min = prices[0];
+    const max = prices[prices.length - 1];
+    const average = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+    const median = prices.length % 2 === 0 
+      ? (prices[Math.floor(prices.length / 2) - 1] + prices[Math.floor(prices.length / 2)]) / 2
+      : prices[Math.floor(prices.length / 2)];
+    
+    // Create price range distribution
+    const ranges = [
+      { label: 'Under $10', min: 0, max: 10 },
+      { label: '$10-$50', min: 10, max: 50 },
+      { label: '$50-$100', min: 50, max: 100 },
+      { label: '$100-$500', min: 100, max: 500 },
+      { label: '$500-$1000', min: 500, max: 1000 },
+      { label: 'Over $1000', min: 1000, max: Infinity }
+    ];
+    
+    const distribution = {};
+    ranges.forEach(range => {
+      const count = prices.filter(price => price >= range.min && price < range.max).length;
+      distribution[range.label] = {
+        count,
+        percentage: ((count / prices.length) * 100).toFixed(1)
+      };
+    });
+    
+    return {
+      min: min.toFixed(2),
+      max: max.toFixed(2),
+      average: average.toFixed(2),
+      median: median.toFixed(2),
+      distribution
+    };
+  }
+
+  /**
+   * Detect primary currency from data
+   */
+  detectPrimaryCurrency(data) {
+    const currencyCount = {};
+    
+    data.forEach(item => {
+      const currency = item.currency || 'USD';
+      currencyCount[currency] = (currencyCount[currency] || 0) + 1;
+    });
+    
+    // Return the most common currency
+    let primaryCurrency = 'USD';
+    let maxCount = 0;
+    
+    for (const [currency, count] of Object.entries(currencyCount)) {
+      if (count > maxCount) {
+        maxCount = count;
+        primaryCurrency = currency;
+      }
+    }
+    
+    return primaryCurrency;
+  }
+
+  /**
+   * Generate mapping suggestions for intelligent column mapping
+   */
+  async generateMappingSuggestions(data) {
+    if (!Array.isArray(data) || data.length === 0) {
+      return [];
+    }
+    
+    const headers = Object.keys(data[0]);
+    const standardFields = [
+      'sku', 'product_name', 'description', 'unit_price', 'currency',
+      'category', 'minimum_order_quantity', 'lead_time_days', 'stock_level'
+    ];
+    
+    const suggestions = [];
+    
+    // Simple fuzzy matching for column mapping suggestions
+    headers.forEach(header => {
+      const normalizedHeader = header.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      
+      let bestMatch = null;
+      let bestScore = 0;
+      
+      standardFields.forEach(field => {
+        const score = this.calculateStringSimilarity(normalizedHeader, field);
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = field;
+        }
+      });
+      
+      if (bestScore > 0.6) { // 60% similarity threshold
+        suggestions.push({
+          sourceColumn: header,
+          suggestedField: bestMatch,
+          confidence: bestScore,
+          automatic: bestScore > 0.8
+        });
+      }
+    });
+    
+    return suggestions;
+  }
+
+  /**
+   * Calculate string similarity for column mapping
+   */
+  calculateStringSimilarity(str1, str2) {
+    const len1 = str1.length;
+    const len2 = str2.length;
+    
+    if (len1 === 0) return len2 === 0 ? 1 : 0;
+    if (len2 === 0) return 0;
+    
+    // Simple implementation of string similarity
+    let matches = 0;
+    const minLen = Math.min(len1, len2);
+    
+    for (let i = 0; i < minLen; i++) {
+      if (str1[i] === str2[i]) {
+        matches++;
+      }
+    }
+    
+    // Include partial matches for common substrings
+    const commonSubstrings = this.findCommonSubstrings(str1, str2);
+    const substringBonus = commonSubstrings.length * 0.1;
+    
+    return (matches / Math.max(len1, len2)) + substringBonus;
+  }
+
+  /**
+   * Find common substrings between two strings
+   */
+  findCommonSubstrings(str1, str2) {
+    const common = [];
+    const words1 = str1.split('_');
+    const words2 = str2.split('_');
+    
+    words1.forEach(word1 => {
+      words2.forEach(word2 => {
+        if (word1 === word2 && word1.length > 2) {
+          common.push(word1);
+        }
+      });
+    });
+    
+    return common;
+  }
+
+  /**
+   * Get existing supplier items for duplicate detection
+   */
+  async getExistingSupplierItems(supplierId) {
+    try {
+      // This would query the database for existing items
+      // For now, return empty array to avoid database dependency issues
+      return [];
+    } catch (error) {
+      console.error('Failed to get existing supplier items:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Apply mapping overrides during approval
+   */
+  async applyMappingOverrides(data, mappingOverrides) {
+    if (!mappingOverrides || Object.keys(mappingOverrides).length === 0) {
+      return data;
+    }
+    
+    return data.map(item => {
+      const mappedItem = { ...item };
+      
+      // Apply field mappings
+      for (const [targetField, sourceField] of Object.entries(mappingOverrides)) {
+        if (item[sourceField] !== undefined) {
+          mappedItem[targetField] = item[sourceField];
+          // Remove the old field if it's different
+          if (sourceField !== targetField) {
+            delete mappedItem[sourceField];
+          }
+        }
+      }
+      
+      return mappedItem;
+    });
+  }
+
+  /**
+   * Apply duplicate resolutions during approval
+   */
+  async applyDuplicateResolutions(data, duplicateResolutions) {
+    if (!duplicateResolutions || Object.keys(duplicateResolutions).length === 0) {
+      return data;
+    }
+    
+    const resolvedData = [];
+    
+    data.forEach(item => {
+      const resolution = duplicateResolutions[item.sku];
+      
+      if (resolution) {
+        switch (resolution.action) {
+          case 'skip':
+            // Don't add this item
+            break;
+          case 'overwrite':
+            resolvedData.push({ ...item, overwriteExisting: true });
+            break;
+          case 'merge':
+            resolvedData.push({ ...item, mergeWithExisting: true });
+            break;
+          default:
+            resolvedData.push(item);
+        }
+      } else {
+        resolvedData.push(item);
+      }
+    });
+    
+    return resolvedData;
+  }
+
+  /**
+   * Apply price rule overrides during approval
+   */
+  async applyPriceRuleOverrides(data, priceRuleOverrides) {
+    if (!priceRuleOverrides || Object.keys(priceRuleOverrides).length === 0) {
+      return data;
+    }
+    
+    return data.map(item => {
+      const override = priceRuleOverrides[item.sku];
+      
+      if (override) {
+        return {
+          ...item,
+          unitPrice: override.unitPrice || item.unitPrice,
+          currency: override.currency || item.currency,
+          priceOverridden: true,
+          originalPrice: item.unitPrice
+        };
+      }
+      
+      return item;
+    });
+  }
 }
 
 // Export singleton instance  

@@ -3,13 +3,10 @@ import { parseExcel, validateExcelStructure, generateExcelTemplate } from './exc
 import { parseJSON, validateJSONStructure, generateJSONTemplate } from './json-parser.js';
 import { parseXML, validateXMLStructure, generateXMLTemplate } from './xml-parser.js';
 import { parsePDF, validatePDFStructure, generatePDFTemplate } from './pdf-parser.js';
-<<<<<<< HEAD
-=======
 import { parseWord, validateWordStructure, generateWordTemplate } from './word-parser.js';
 import { parseEmail, validateEmailStructure, generateEmailTemplate } from './email-parser.js';
 import { parseIntelligentPDF, validateIntelligentPDFStructure, generateIntelligentPDFTemplate } from './intelligent-pdf-parser.js';
 import { IntelligentColumnMapper } from './intelligent-column-mapper.js';
->>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
 
 // Supported file types
 export const SUPPORTED_FILE_TYPES = {
@@ -32,7 +29,7 @@ export const SUPPORTED_FILE_TYPES = {
   },
   JSON: {
     extensions: ['.json'],
-    mimeTypes: ['application/json'],
+    mimeTypes: ['application/json', 'text/json'],
     parser: parseJSON,
     validator: validateJSONStructure,
     templateGenerator: generateJSONTemplate
@@ -50,8 +47,6 @@ export const SUPPORTED_FILE_TYPES = {
     parser: parsePDF,
     validator: validatePDFStructure,
     templateGenerator: generatePDFTemplate
-<<<<<<< HEAD
-=======
   },
   WORD: {
     extensions: ['.docx', '.doc'],
@@ -80,22 +75,23 @@ export const SUPPORTED_FILE_TYPES = {
     validator: validateIntelligentPDFStructure,
     templateGenerator: generateIntelligentPDFTemplate,
     priority: 1 // Higher priority than regular PDF parser
->>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
   }
 };
 
 // Detect file type from filename or MIME type
 export function detectFileType(filename, mimeType) {
-  const extension = filename.toLowerCase().match(/\.[^.]+$/)?.[0];
+  const extension = filename ? filename.toLowerCase().match(/\.[^.]+$/)?.[0] : null;
   
   // Try to match by extension first
-  for (const [type, config] of Object.entries(SUPPORTED_FILE_TYPES)) {
-    if (extension && config.extensions.includes(extension)) {
-      return type;
+  if (extension) {
+    for (const [type, config] of Object.entries(SUPPORTED_FILE_TYPES)) {
+      if (config.extensions.includes(extension)) {
+        return type;
+      }
     }
   }
   
-  // Fall back to MIME type
+  // Fall back to MIME type matching
   if (mimeType) {
     for (const [type, config] of Object.entries(SUPPORTED_FILE_TYPES)) {
       if (config.mimeTypes.includes(mimeType)) {
@@ -107,192 +103,221 @@ export function detectFileType(filename, mimeType) {
   return null;
 }
 
-// Parse price list file
+// Get parser configuration for file type
+export function getParserConfig(fileType) {
+  return SUPPORTED_FILE_TYPES[fileType] || null;
+}
+
+// Main parsing function that delegates to appropriate parser
 export async function parsePriceListFile(file, options = {}) {
-  const { filename, mimeType, buffer } = file;
-  
-  // Detect file type
-<<<<<<< HEAD
-  const fileType = detectFileType(filename, mimeType);
-=======
-  let fileType = detectFileType(filename, mimeType);
-  
-  // For PDF files, check if intelligent parsing is requested
-  if (fileType === 'PDF' && options.intelligentParsing !== false) {
-    fileType = 'INTELLIGENT_PDF';
-  }
->>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
-  
-  if (!fileType) {
-    return {
-      success: false,
-      error: `Unsupported file type. Filename: ${filename}, MIME: ${mimeType}`
-    };
-  }
-  
-  const config = SUPPORTED_FILE_TYPES[fileType];
-  
-  if (!config.parser) {
-    return {
-      success: false,
-      error: `Parser not implemented for ${fileType} files`
-    };
-  }
-  
   try {
-<<<<<<< HEAD
-    // Add file metadata to result
-    const result = await config.parser(buffer, options);
-    result.fileType = fileType;
-    result.filename = filename;
+    const fileType = detectFileType(file.originalname || file.name, file.mimetype);
     
-=======
-    // Enhanced options for intelligent parsing
-    const enhancedOptions = {
-      ...options,
-      filename,
-      intelligentMapping: options.intelligentMapping !== false,
-      columnMapper: options.columnMapper || new IntelligentColumnMapper()
-    };
-    
-    // Add file metadata to result
-    const result = await config.parser(buffer, enhancedOptions);
-    result.fileType = fileType;
-    result.filename = filename;
-    
-    // Apply intelligent column mapping if available
-    if (result.success && result.data && options.intelligentMapping !== false) {
-      const mapper = enhancedOptions.columnMapper;
-      
-      // For array data with headers
-      if (Array.isArray(result.data) && result.headers) {
-        const mappingResult = mapper.mapHeaders(result.headers);
-        result.mapping = mappingResult.mapping;
-        result.mappingConfidence = mappingResult.confidence;
-        result.unmappedHeaders = mappingResult.unmappedHeaders;
-        
-        // Apply mapping to data
-        if (Object.keys(mappingResult.mapping).length > 0) {
-          result.mappedData = mapper.applyMapping(result.data, mappingResult.mapping);
-        }
-      }
+    if (!fileType) {
+      return {
+        success: false,
+        error: `Unsupported file type. Supported formats: ${Object.keys(SUPPORTED_FILE_TYPES).join(', ')}`
+      };
     }
     
->>>>>>> 300aab3bb16173c33b69ac31996e9bb691d90580
+    const config = getParserConfig(fileType);
+    if (!config) {
+      return {
+        success: false,
+        error: `No parser configuration found for file type: ${fileType}`
+      };
+    }
+    
+    // Use the appropriate parser
+    const result = await config.parser(file, options);
+    
+    if (result.success) {
+      return {
+        ...result,
+        fileType,
+        parserUsed: config.parser.name
+      };
+    }
+    
     return result;
+    
   } catch (error) {
     return {
       success: false,
-      error: `Failed to parse ${fileType} file: ${error.message}`,
-      fileType,
-      filename
+      error: `File parsing failed: ${error.message}`,
+      details: error.stack
     };
   }
 }
 
-// Validate price list file structure
+// Main validation function
 export async function validatePriceListFile(file, options = {}) {
-  const { filename, mimeType, buffer } = file;
-  
-  // Detect file type
-  const fileType = detectFileType(filename, mimeType);
-  
-  if (!fileType) {
-    return {
-      valid: false,
-      error: `Unsupported file type. Filename: ${filename}, MIME: ${mimeType}`
-    };
-  }
-  
-  const config = SUPPORTED_FILE_TYPES[fileType];
-  
-  if (!config.validator) {
-    return {
-      valid: false,
-      error: `Validator not implemented for ${fileType} files`
-    };
-  }
-  
   try {
-    const result = await config.validator(buffer, options);
-    result.fileType = fileType;
-    result.filename = filename;
+    const fileType = detectFileType(file.originalname || file.name, file.mimetype);
     
-    return result;
+    if (!fileType) {
+      return {
+        valid: false,
+        error: `Unsupported file type. Supported formats: ${Object.keys(SUPPORTED_FILE_TYPES).join(', ')}`
+      };
+    }
+    
+    const config = getParserConfig(fileType);
+    if (!config) {
+      return {
+        valid: false,
+        error: `No validator configuration found for file type: ${fileType}`
+      };
+    }
+    
+    // Use the appropriate validator
+    return await config.validator(file, options);
+    
   } catch (error) {
     return {
       valid: false,
-      error: `Failed to validate ${fileType} file: ${error.message}`,
-      fileType,
-      filename
+      error: `File validation failed: ${error.message}`,
+      details: error.stack
     };
   }
 }
 
-// Generate template file
-export function generatePriceListTemplate(fileType) {
-  const config = SUPPORTED_FILE_TYPES[fileType];
-  
-  if (!config) {
-    throw new Error(`Invalid file type: ${fileType}`);
-  }
-  
-  if (!config.templateGenerator) {
-    throw new Error(`Template generator not implemented for ${fileType} files`);
-  }
-  
-  return config.templateGenerator();
-}
-
-// Convert parsed data to standard format
-export function standardizePriceListData(parsedData, supplierId, uploadedBy) {
-  const { data, filename, fileType } = parsedData;
-  
-  // Create price list record
-  const priceList = {
-    supplierId,
-    name: `Price List - ${new Date().toISOString().split('T')[0]}`,
-    description: `Uploaded from ${filename}`,
-    effectiveDate: new Date(),
-    currency: 'USD', // Default, can be overridden by items
-    status: 'pending',
-    uploadedBy,
-    sourceFile: {
-      filename,
-      fileType,
-      uploadDate: new Date()
+// Template generation function
+export async function generateTemplate(fileType, options = {}) {
+  try {
+    const config = getParserConfig(fileType);
+    if (!config) {
+      throw new Error(`No template generator found for file type: ${fileType}`);
     }
-  };
-  
-  // Standardize items
-  const items = data.map(item => ({
-    sku: item.sku.trim(),
-    description: item.description || '',
-    unitPrice: item.unitPrice,
-    currency: item.currency || 'USD',
-    minimumOrderQuantity: item.minimumOrderQuantity || 1,
-    unitOfMeasure: item.unitOfMeasure || 'EA',
-    tierPricing: item.tierPricing || [],
-    isActive: true
-  }));
-  
-  return {
-    priceList,
-    items
-  };
+    
+    return await config.templateGenerator(options);
+    
+  } catch (error) {
+    return {
+      success: false,
+      error: `Template generation failed: ${error.message}`,
+      details: error.stack
+    };
+  }
 }
 
-// Import enhanced validation
-import { validatePriceListData as enhancedValidate } from './validation.js';
+// Intelligent column mapping function
+export async function applyIntelligentMapping(data, options = {}) {
+  try {
+    const mapper = new IntelligentColumnMapper(options);
+    return await mapper.mapColumns(data);
+  } catch (error) {
+    return {
+      success: false,
+      error: `Intelligent mapping failed: ${error.message}`,
+      suggestions: []
+    };
+  }
+}
 
-// Enhanced price list data validation with business rules
-export function validatePriceListData(priceList, items, options = {}) {
-  // Use enhanced validation with business rules
-  return enhancedValidate(priceList, items, {
-    strictMode: options.strictMode || false,
-    checkDuplicates: options.checkDuplicates !== false,
-    validateBusinessRules: options.validateBusinessRules !== false,
-    performanceCheck: options.performanceCheck !== false,
-    ...options
-  });
+// Export all parsers for direct use if needed
+export {
+  parseCSV,
+  parseExcel,
+  parseJSON,
+  parseXML,
+  parsePDF,
+  parseWord,
+  parseEmail,
+  parseIntelligentPDF,
+  IntelligentColumnMapper
+};
+
+// Export validators
+export {
+  validateCSVStructure,
+  validateExcelStructure,
+  validateJSONStructure,
+  validateXMLStructure,
+  validatePDFStructure,
+  validateWordStructure,
+  validateEmailStructure,
+  validateIntelligentPDFStructure
+};
+
+// Export template generators
+export {
+  generateCSVTemplate,
+  generateExcelTemplate,
+  generateJSONTemplate,
+  generateXMLTemplate,
+  generatePDFTemplate,
+  generateWordTemplate,
+  generateEmailTemplate,
+  generateIntelligentPDFTemplate
+};
+
+// Export standardization function
+export function standardizePriceListData(data, options = {}) {
+  try {
+    if (!Array.isArray(data)) {
+      throw new Error('Data must be an array');
+    }
+
+    return data.map(item => ({
+      sku: item.sku || item.SKU || item.productCode || item['Product Code'] || '',
+      productName: item.productName || item['Product Name'] || item.name || item.Name || '',
+      description: item.description || item.Description || item.productName || '',
+      unitPrice: parseFloat(item.unitPrice || item['Unit Price'] || item.price || item.Price || 0),
+      currency: item.currency || item.Currency || options.defaultCurrency || 'USD',
+      category: item.category || item.Category || '',
+      minimumOrderQuantity: parseInt(item.minimumOrderQuantity || item['Minimum Order Quantity'] || item.moq || item.MOQ || 1),
+      leadTimeDays: parseInt(item.leadTimeDays || item['Lead Time Days'] || item.leadTime || 0),
+      stockLevel: parseInt(item.stockLevel || item['Stock Level'] || item.stock || 0),
+      unitOfMeasure: item.unitOfMeasure || item['Unit of Measure'] || item.uom || item.UOM || 'EA',
+      // Preserve original data
+      _original: item
+    }));
+  } catch (error) {
+    throw new Error(`Data standardization failed: ${error.message}`);
+  }
+}
+
+// Export validation function for price list data
+export function validatePriceListData(data, options = {}) {
+  try {
+    if (!Array.isArray(data)) {
+      return {
+        valid: false,
+        error: 'Data must be an array'
+      };
+    }
+
+    const errors = [];
+    const warnings = [];
+
+    data.forEach((item, index) => {
+      // Required field validation
+      if (!item.sku) {
+        errors.push(`Row ${index + 1}: SKU is required`);
+      }
+
+      if (!item.unitPrice || item.unitPrice <= 0) {
+        errors.push(`Row ${index + 1}: Valid unit price is required`);
+      }
+
+      // Warnings for missing optional fields
+      if (!item.productName && !item.description) {
+        warnings.push(`Row ${index + 1}: Missing product name or description`);
+      }
+    });
+
+    return {
+      valid: errors.length === 0,
+      errors,
+      warnings,
+      totalItems: data.length,
+      validItems: data.length - errors.length
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      error: `Validation failed: ${error.message}`
+    };
+  }
 }

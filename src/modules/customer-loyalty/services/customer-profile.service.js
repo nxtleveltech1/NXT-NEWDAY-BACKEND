@@ -3,13 +3,14 @@
  * Handles customer profile management, tier calculations, and loyalty tracking
  */
 
-import mysql from 'mysql2/promise';
+import { db, pool } from '../../../config/database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { CUSTOMER_TIERS, TIER_REQUIREMENTS, TIER_MULTIPLIERS, POINT_EVENTS } from '../types/index.js';
 
 class CustomerProfileService {
-  constructor(dbConnection) {
-    this.db = dbConnection;
+  constructor() {
+    this.db = db;
+    this.pool = pool;
   }
 
   /**

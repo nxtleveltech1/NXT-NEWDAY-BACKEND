@@ -756,3 +756,85 @@ function extractItemUsingAI(line, knownTerms) {
     unitOfMeasure: 'EA'
   };
 }
+
+/**
+ * Validate intelligent PDF structure
+ */
+export async function validateIntelligentPDFStructure(file, options = {}) {
+  try {
+    if (!file || !file.buffer) {
+      return {
+        valid: false,
+        error: 'No file buffer provided'
+      };
+    }
+
+    if (file.mimetype !== 'application/pdf') {
+      return {
+        valid: false,
+        error: 'File is not a PDF'
+      };
+    }
+
+    if (file.buffer.length === 0) {
+      return {
+        valid: false,
+        error: 'PDF file is empty'
+      };
+    }
+
+    // Basic PDF header validation
+    const header = file.buffer.toString('ascii', 0, 8);
+    if (!header.startsWith('%PDF-')) {
+      return {
+        valid: false,
+        error: 'Invalid PDF format'
+      };
+    }
+
+    return {
+      valid: true,
+      fileSize: file.buffer.length,
+      format: 'PDF'
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      error: `PDF validation error: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Generate intelligent PDF template
+ */
+export async function generateIntelligentPDFTemplate(options = {}) {
+  // For PDF templates, we would typically generate a sample document
+  // For now, return template information
+  return {
+    success: true,
+    templateType: 'intelligent_pdf',
+    description: 'Intelligent PDF parser can extract data from scanned and text-based PDFs',
+    supportedFields: [
+      'sku',
+      'description', 
+      'unitPrice',
+      'currency',
+      'minimumOrderQuantity',
+      'unitOfMeasure'
+    ],
+    features: [
+      'OCR for scanned documents',
+      'Intelligent column mapping',
+      'Table structure detection',
+      'Multi-language support',
+      'Fuzzy text matching'
+    ],
+    recommendations: [
+      'Ensure text is clearly visible and not blurred',
+      'Use consistent table structures',
+      'Include clear column headers',
+      'Avoid complex layouts with overlapping text'
+    ]
+  };
+}

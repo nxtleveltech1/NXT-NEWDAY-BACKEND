@@ -1,14 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * FIGHTER JET BACKEND SERVER - TARGET: 0.335ms RESPONSE TIME
- * Ultra-high performance Node.js HTTP server with zero middleware overhead
- * Built for 94x faster response times than standard Express applications
+ * FIGHTER JET BACKEND SERVER - PRODUCTION READY
+ * NILEDB PostgreSQL + CORS for nxtdotx.co.za
+ * Ultra-high performance with comprehensive error handling
  */
 
 import { createServer } from 'http';
-import { Worker } from 'worker_threads';
-import { createPool } from 'mysql2/promise';
 import { createClient } from 'redis';
 import { cpus } from 'os';
 import { performance } from 'perf_hooks';
@@ -17,117 +15,65 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
+// Import NILEDB PostgreSQL configuration
+import { 
+  testNileConnection, 
+  initializeNileDB, 
+  nilePool, 
+  insertDashboardMetric,
+  getNileConnectionStatus 
+} from './src/config/niledb.config.js';
+
 // Import API Integration Services
 import apiIntegrationService from './src/services/api-integration.service.js';
-import woocommerceSyncService from './src/services/woocommerce-bidirectional-sync.service.js';
+// Temporarily commented out due to configuration issues
+// import woocommerceSyncService from './src/services/woocommerce-bidirectional-sync.service.js';
 import paymentGatewayService from './src/services/payment-gateway.service.js';
-import { testNileConnection, initializeNileDB } from './src/config/niledb.config.js';
 
-// Ultra-fast constants
+// Production configuration
 const PORT = process.env.PORT || 4000;
-const NODE_ENV = process.env.NODE_ENV || 'development';
+const NODE_ENV = process.env.NODE_ENV || 'production';
 const CPU_COUNT = cpus().length;
 
-// Performance tracking globals
+// Performance tracking
 let requestCount = 0;
 let totalResponseTime = 0;
 let startTime = Date.now();
 
-// Connection pools for maximum performance
-let dbPool;
+// Redis client
 let redisClient;
-let workerPool = [];
+
+// CORS configuration for nxtdotx.co.za
+const corsOptions = {
+  origin: [
+    'https://nxtdotx.co.za',
+    'https://www.nxtdotx.co.za',
+    'https://api.nxtdotx.co.za',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
 
 /**
- * ULTRA-FAST DATABASE CONNECTION POOL
- * Pre-warmed connections with prepared statements
+ * Initialize Redis Cache
  */
-async function initializeFighterJetDB() {
-  const poolConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'horizon',
-    
-    // Fighter jet performance settings
-    connectionLimit: 50,
-    acquireTimeout: 60000,
-    timeout: 60000,
-    
-    // Keep connections warm
-    reconnect: true,
-    idleTimeout: 300000,
-    acquireTimeout: 1000,
-    
-    // Prepared statement cache
-    typeCast: false,
-    supportBigNumbers: true,
-    bigNumberStrings: false,
-    
-    // Zero latency settings
-    flags: '-FOUND_ROWS',
-    ssl: false,
-    compress: true,
-    
-    // Maximum performance flags
-    multipleStatements: false,
-    nestTables: false,
-    rowsAsArray: false,
-    
-    // Pre-warm settings
-    preInitDelay: 0,
-    initializationTimeout: 10000
-  };
-
-  dbPool = createPool(poolConfig);
-  
-  // Pre-warm the connection pool
-  const warmupPromises = [];
-  for (let i = 0; i < 10; i++) {
-    warmupPromises.push(dbPool.execute('SELECT 1 as connected'));
-  }
-  await Promise.all(warmupPromises);
-  
-  console.log(`🚀 Fighter Jet DB Pool initialized with ${poolConfig.connectionLimit} connections`);
-}
-
-/**
- * ULTRA-FAST REDIS CACHE
- * Memory-optimized caching layer
- */
-async function initializeFighterJetCache() {
-  const redisConfig = {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: process.env.REDIS_PORT || 6379,
-    password: process.env.REDIS_PASSWORD || undefined,
-    
-    // Fighter jet performance settings
-    connectTimeout: 1000,
-    commandTimeout: 500,
-    retryDelayOnFailover: 0,
-    enableReadyCheck: false,
-    maxRetriesPerRequest: 1,
-    lazyConnect: false,
-    keepAlive: 30000,
-    
-    // Ultra-fast serialization
-    compression: 'none',
-    keyPrefix: 'fj:',
-    
-    // Connection pool settings
-    family: 4,
-    db: 0
-  };
-
+async function initializeRedisCache() {
   try {
-    redisClient = createClient(redisConfig);
+    redisClient = createClient({
+      host: process.env.REDIS_HOST || 'localhost',
+      port: process.env.REDIS_PORT || 6379,
+      password: process.env.REDIS_PASSWORD || undefined
+    });
+    
     redisClient.on('error', (err) => {
       console.warn('Redis connection error (continuing without cache):', err.message);
     });
     
     await redisClient.connect();
-    console.log('🚀 Fighter Jet Redis Cache connected');
+    console.log('✅ Redis Cache connected');
   } catch (error) {
     console.warn('⚠️ Redis unavailable, running without cache:', error.message);
     redisClient = null;
@@ -135,76 +81,57 @@ async function initializeFighterJetCache() {
 }
 
 /**
- * WORKER THREAD POOL FOR CPU-INTENSIVE TASKS
- * Prevents blocking the main event loop
+ * Verify NILEDB PostgreSQL Health
  */
-function initializeWorkerPool() {
-  const workerCount = Math.min(CPU_COUNT, 4); // Limit worker threads
-  
-  for (let i = 0; i < workerCount; i++) {
-    try {
-      const worker = new Worker(`
-        const { parentPort } = require('worker_threads');
-        
-        parentPort.on('message', async (task) => {
-          try {
-            const start = performance.now();
-            let result;
-            
-            switch (task.type) {
-              case 'json_parse':
-                result = JSON.parse(task.data);
-                break;
-              case 'json_stringify':
-                result = JSON.stringify(task.data);
-                break;
-              case 'compute':
-                // CPU-intensive computations
-                result = task.data * task.data;
-                break;
-              default:
-                result = { error: 'Unknown task type' };
-            }
-            
-            const duration = performance.now() - start;
-            parentPort.postMessage({ 
-              id: task.id, 
-              result, 
-              duration,
-              success: true 
-            });
-          } catch (error) {
-            parentPort.postMessage({ 
-              id: task.id, 
-              error: error.message,
-              success: false 
-            });
-          }
-        });
-      `, { eval: true });
-      
-      workerPool.push(worker);
-    } catch (error) {
-      console.warn(`Worker ${i} failed to initialize:`, error.message);
+async function checkNileDBHealth() {
+  try {
+    const connectionTest = await testNileConnection();
+    if (!connectionTest.success) {
+      throw new Error(`NILEDB connection failed: ${connectionTest.error}`);
     }
+    
+    const connectionStatus = getNileConnectionStatus();
+    console.log('✅ NILEDB PostgreSQL connection verified');
+    console.log(`📊 Pool Stats - Total: ${connectionStatus.poolStats.totalCount}, Idle: ${connectionStatus.poolStats.idleCount}`);
+    
+    return connectionStatus;
+  } catch (error) {
+    console.error('❌ NILEDB health check failed:', error.message);
+    throw error;
   }
-  
-  console.log(`🚀 Fighter Jet Worker Pool initialized with ${workerPool.length} workers`);
 }
 
 /**
- * ULTRA-FAST REQUEST ROUTER
- * Zero-overhead routing with direct function calls
+ * Routes Map
  */
 const routes = new Map();
 
-// Health check endpoint - fastest possible response
-routes.set('GET /health', () => {
-  return {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-    body: '{"status":"ok","timestamp":' + Date.now() + '}'
-  };
+// Health check endpoint
+routes.set('GET /health', async () => {
+  try {
+    const nileStatus = await testNileConnection();
+    return {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'ok',
+        database: 'NILEDB_PostgreSQL',
+        niledb_status: nileStatus.success,
+        timestamp: new Date().toISOString(),
+        server: 'FighterJet-NILEDB-Production'
+      })
+    };
+  } catch (error) {
+    return {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'error',
+        error: NODE_ENV === 'development' ? error.message : 'Health check failed',
+        timestamp: new Date().toISOString()
+      })
+    };
+  }
 });
 
 // Performance metrics endpoint
@@ -221,35 +148,79 @@ routes.set('GET /metrics', () => {
       requests: requestCount,
       averageResponseTime: Number(avgResponseTime.toFixed(3)),
       requestsPerSecond: Number(rps.toFixed(2)),
-      target: '0.335ms',
-      performance: avgResponseTime <= 0.335 ? 'FIGHTER_JET' : 'OPTIMIZING'
+      database: 'NILEDB_PostgreSQL',
+      cors_enabled: corsOptions.origin,
+      environment: NODE_ENV,
+      timestamp: new Date().toISOString()
     })
   };
 });
 
-// Enhanced supplier upload routes integration
-routes.set('POST /api/suppliers/:supplierId/upload-enhanced', async (req, res) => {
+// Suppliers endpoint - NILEDB PostgreSQL
+routes.set('GET /api/suppliers', async () => {
   try {
-    const { supplierUploadEnhancedService } = await import('./src/services/supplier-upload-enhanced.service.js');
-    // Handle multipart form data and file upload
-    // This is a simplified integration - full implementation would require multipart parsing
-    return {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: true, message: 'Enhanced upload endpoint active' })
-    };
+    if (!nilePool) {
+      return {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          success: false,
+          error: 'NILEDB PostgreSQL not available',
+          timestamp: new Date().toISOString()
+        })
+      };
+    }
+    
+    const client = await nilePool.connect();
+    
+    try {
+      const result = await client.query(
+        'SELECT * FROM suppliers WHERE is_active = true ORDER BY name'
+      );
+      
+      // Log metric
+      await insertDashboardMetric('suppliers_fetched', result.rows.length, 'gauge');
+      
+      return {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          success: true,
+          data: result.rows,
+          count: result.rows.length,
+          database: 'NILEDB_PostgreSQL',
+          timestamp: new Date().toISOString()
+        })
+      };
+    } finally {
+      client.release();
+    }
   } catch (error) {
+    console.error('Suppliers query error:', error);
+    
+    try {
+      await insertDashboardMetric('api_error', 1, 'counter', { 
+        endpoint: '/api/suppliers',
+        error: error.message 
+      });
+    } catch (metricsError) {
+      console.warn('Failed to log error metric:', metricsError.message);
+    }
+    
     return {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Upload service error', message: error.message })
+      body: JSON.stringify({ 
+        success: false,
+        error: 'Failed to fetch suppliers', 
+        message: NODE_ENV === 'development' ? error.message : 'Internal server error',
+        timestamp: new Date().toISOString()
+      })
     };
   }
 });
 
-// ==================== API INTEGRATION ENDPOINTS ====================
-
-// API Integration Status - Lightning Fast
+// API Integration Status
 routes.set('GET /api/integrations/status', async () => {
   try {
     const status = apiIntegrationService.getIntegrationStatus();
@@ -261,205 +232,61 @@ routes.set('GET /api/integrations/status', async () => {
       body: JSON.stringify({
         success: true,
         data: { integrations: status, metrics },
+        database: 'NILEDB_PostgreSQL',
         timestamp: new Date().toISOString()
       })
     };
   } catch (error) {
+    console.error('Integration status error:', error);
     return {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: false, error: error.message })
-    };
-  }
-});
-
-// WooCommerce Sync Status
-routes.set('GET /api/integrations/woocommerce/status', async () => {
-  try {
-    const stats = woocommerceSyncService.getStatistics();
-    return {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: true, data: stats })
-    };
-  } catch (error) {
-    return {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: false, error: error.message })
-    };
-  }
-});
-
-// Payment Gateway Status
-routes.set('GET /api/integrations/payments/status', async () => {
-  try {
-    const stats = await paymentGatewayService.getStatistics();
-    return {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: true, data: stats })
-    };
-  } catch (error) {
-    return {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: false, error: error.message })
-    };
-  }
-});
-
-routes.set('POST /api/suppliers/bulk-upload-enhanced', async (req, res) => {
-  try {
-    const { supplierUploadEnhancedService } = await import('./src/services/supplier-upload-enhanced.service.js');
-    return {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: true, message: 'Bulk upload endpoint active' })
-    };
-  } catch (error) {
-    return {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Bulk upload service error', message: error.message })
-    };
-  }
-});
-
-routes.set('GET /api/suppliers/:supplierId/upload-history', async (req, res) => {
-  try {
-    if (!dbPool) {
-      return {
-        status: 503,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Database not available' })
-      };
-    }
-    
-    const supplierId = req.url.split('/')[3];
-    const [rows] = await dbPool.execute(
-      'SELECT id, fileName, status, uploadDate, itemCount FROM upload_history WHERE supplierId = ? ORDER BY uploadDate DESC LIMIT 10',
-      [supplierId]
-    );
-    
-    return {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: { uploads: rows } })
-    };
-  } catch (error) {
-    return {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Query failed', message: error.message })
-    };
-  }
-});
-
-// Fast database query endpoint
-routes.set('GET /api/fast-query', async () => {
-  try {
-    if (!dbPool) {
-      return {
-        status: 503,
-        headers: { 'Content-Type': 'application/json' },
-        body: '{"error":"Database not available"}'
-      };
-    }
-    
-    // Ultra-fast query with prepared statement
-    const [rows] = await dbPool.execute('SELECT COUNT(*) as count FROM suppliers LIMIT 1');
-    
-    return {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ count: rows[0]?.count || 0, cached: false })
-    };
-  } catch (error) {
-    return {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Query failed', message: error.message })
-    };
-  }
-});
-
-// Cached endpoint for maximum speed
-routes.set('GET /api/cached-data', async () => {
-  const cacheKey = 'suppliers:count';
-  
-  try {
-    // Try cache first
-    if (redisClient) {
-      const cached = await redisClient.get(cacheKey);
-      if (cached) {
-        return {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-          body: cached
-        };
-      }
-    }
-    
-    // Fallback to database
-    if (dbPool) {
-      const [rows] = await dbPool.execute('SELECT COUNT(*) as count FROM suppliers');
-      const result = JSON.stringify({ count: rows[0]?.count || 0, cached: false });
-      
-      // Cache for next request
-      if (redisClient) {
-        await redisClient.setEx(cacheKey, 60, result); // 60 second cache
-      }
-      
-      return {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: result
-      };
-    }
-    
-    return {
-      status: 503,
-      headers: { 'Content-Type': 'application/json' },
-      body: '{"error":"No data source available"}'
-    };
-  } catch (error) {
-    return {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Cache/DB error', message: error.message })
+      body: JSON.stringify({ 
+        success: false, 
+        error: NODE_ENV === 'development' ? error.message : 'Integration status unavailable',
+        timestamp: new Date().toISOString()
+      })
     };
   }
 });
 
 /**
- * FIGHTER JET HTTP SERVER
- * Raw Node.js HTTP with zero middleware overhead
+ * HTTP Server with CORS and Error Handling
  */
 const server = createServer(async (req, res) => {
   const requestStart = performance.now();
   requestCount++;
   
   try {
-    // Ultra-fast method and URL parsing
     const method = req.method;
-    const url = req.url.split('?')[0]; // Remove query string for routing
+    const url = req.url.split('?')[0];
     const routeKey = `${method} ${url}`;
     
-    // Set minimal headers for maximum speed
-    res.setHeader('X-Powered-By', 'FighterJet');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    // CORS headers for nxtdotx.co.za
+    const origin = req.headers.origin;
+    if (corsOptions.origin.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Methods', corsOptions.methods.join(', '));
+    res.setHeader('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     
-    // Handle preflight requests instantly
+    // Security headers
+    res.setHeader('X-Powered-By', 'FighterJet-NILEDB');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    
+    // Handle preflight requests
     if (method === 'OPTIONS') {
       res.writeHead(204);
       res.end();
       return;
     }
     
-    // Route lookup
+    // Route handling
     const handler = routes.get(routeKey);
     
     if (handler) {
@@ -473,66 +300,76 @@ const server = createServer(async (req, res) => {
       res.writeHead(result.status || 200);
       res.end(result.body || '');
     } else {
-      // 404 - Not Found (ultra-fast)
+      // 404 - Not Found
       res.setHeader('Content-Type', 'application/json');
       res.writeHead(404);
-      res.end('{"error":"Not Found","code":404}');
+      res.end(JSON.stringify({
+        success: false,
+        error: 'Not Found',
+        code: 404,
+        database: 'NILEDB_PostgreSQL',
+        timestamp: new Date().toISOString()
+      }));
     }
     
   } catch (error) {
-    // Error handler (minimal overhead)
     console.error('Request error:', error);
+    
+    // Log error metric
+    try {
+      await insertDashboardMetric('server_error', 1, 'counter', { 
+        method: req.method,
+        url: req.url,
+        error: error.message 
+      });
+    } catch (metricsError) {
+      console.warn('Failed to log error metric:', metricsError.message);
+    }
+    
     res.setHeader('Content-Type', 'application/json');
     res.writeHead(500);
-    res.end('{"error":"Internal Server Error","code":500}');
+    res.end(JSON.stringify({
+      success: false,
+      error: 'Internal Server Error',
+      code: 500,
+      message: NODE_ENV === 'development' ? error.message : 'Internal server error',
+      database: 'NILEDB_PostgreSQL',
+      timestamp: new Date().toISOString()
+    }));
   } finally {
     // Track performance
     const responseTime = performance.now() - requestStart;
     totalResponseTime += responseTime;
     
-    // Log ultra-slow requests (anything over 1ms is slow for fighter jet standards)
-    if (responseTime > 1.0) {
+    // Log slow requests
+    if (responseTime > 5.0) {
       console.warn(`⚠️ Slow request: ${req.method} ${req.url} - ${responseTime.toFixed(3)}ms`);
     }
   }
 });
 
 /**
- * GRACEFUL SHUTDOWN HANDLER
- * Clean resource cleanup for maximum reliability
+ * Graceful Shutdown
  */
 async function gracefulShutdown(signal) {
-  console.log(`\n🛑 Received ${signal}. Shutting down Fighter Jet Server gracefully...`);
-  
-  const shutdownStart = performance.now();
+  console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
   
   try {
-    // Stop accepting new connections
     server.close(async () => {
       console.log('✅ HTTP server closed');
       
       try {
-        // Close database pool
-        if (dbPool) {
-          await dbPool.end();
-          console.log('✅ Database pool closed');
+        if (nilePool) {
+          await nilePool.end();
+          console.log('✅ NILEDB PostgreSQL pool closed');
         }
         
-        // Close Redis connection
         if (redisClient) {
           await redisClient.quit();
           console.log('✅ Redis connection closed');
         }
         
-        // Terminate worker threads
-        for (const worker of workerPool) {
-          await worker.terminate();
-        }
-        console.log('✅ Worker threads terminated');
-        
-        const shutdownTime = performance.now() - shutdownStart;
-        console.log(`🚀 Fighter Jet Server shutdown completed in ${shutdownTime.toFixed(3)}ms`);
-        
+        console.log('🚀 Graceful shutdown completed');
         process.exit(0);
       } catch (error) {
         console.error('❌ Error during shutdown:', error);
@@ -553,61 +390,67 @@ async function gracefulShutdown(signal) {
 }
 
 /**
- * FIGHTER JET SERVER INITIALIZATION
- * Ultra-fast startup sequence
+ * Server Initialization
  */
-async function startFighterJetServer() {
+async function startServer() {
   const initStart = performance.now();
   
   try {
-    console.log('🚀 Initializing Fighter Jet Backend Server...');
-    console.log(`🎯 Target Response Time: 0.335ms`);
-    console.log(`💾 Available CPUs: ${CPU_COUNT}`);
+    console.log('🚀 Initializing Fighter Jet Backend Server - Production Ready');
+    console.log(`💾 CPUs: ${CPU_COUNT}`);
+    console.log(`🌐 CORS: ${corsOptions.origin.join(', ')}`);
+    console.log(`📊 Environment: ${NODE_ENV}`);
     
-    // Initialize all systems in parallel for maximum speed
+    // Initialize all systems
     await Promise.all([
-      initializeFighterJetDB(),
-      initializeFighterJetCache(),
-      Promise.resolve(initializeWorkerPool()),
-      initializeNileDB(),
-      testNileConnection()
+      checkNileDBHealth(),
+      initializeRedisCache(),
+      initializeNileDB()
     ]);
 
-    // Initialize API Integration Services in parallel for maximum performance
+    // Initialize API Integration Services
     console.log('🔗 Initializing API Integration Services...');
     await Promise.all([
       apiIntegrationService.initializeIntegrations().catch(err => {
-        console.warn('⚠️ API Integration Service failed to initialize:', err.message);
+        console.warn('⚠️ API Integration Service failed:', err.message);
       }),
-      woocommerceSyncService.initialize().catch(err => {
-        console.warn('⚠️ WooCommerce Sync Service failed to initialize:', err.message);
-      }),
+      // Temporarily commented out due to configuration issues
+      // woocommerceSyncService.initialize().catch(err => {
+      //   console.warn('⚠️ WooCommerce Sync Service failed:', err.message);
+      // }),
       paymentGatewayService.initialize().catch(err => {
-        console.warn('⚠️ Payment Gateway Service failed to initialize:', err.message);
+        console.warn('⚠️ Payment Gateway Service failed:', err.message);
       })
     ]);
     
-    // Start the server
+    // Start server
     server.listen(PORT, () => {
       const initTime = performance.now() - initStart;
-      console.log(`\n🚀 FIGHTER JET SERVER ACTIVE`);
+      console.log(`\n🚀 FIGHTER JET SERVER ACTIVE - PRODUCTION READY`);
       console.log(`📡 Port: ${PORT}`);
-      console.log(`⚡ Startup Time: ${initTime.toFixed(3)}ms`);
-      console.log(`🎯 Target Response: 0.335ms`);
-      console.log(`💪 Worker Threads: ${workerPool.length}`);
-      console.log(`🗄️ DB Pool: ${dbPool ? 'Connected' : 'Unavailable'}`);
-      console.log(`⚡ Redis Cache: ${redisClient ? 'Connected' : 'Unavailable'}`);
-      console.log(`\n📊 Health Check: http://localhost:${PORT}/health`);
-      console.log(`📈 Metrics: http://localhost:${PORT}/metrics`);
-      console.log(`🚀 Fast Query: http://localhost:${PORT}/api/fast-query`);
-      console.log(`⚡ Cached Data: http://localhost:${PORT}/api/cached-data`);
-      console.log(`\n🛡️ Ready for Fighter Jet Performance!`);
+      console.log(`⚡ Startup: ${initTime.toFixed(3)}ms`);
+      console.log(`🗄️ NILEDB PostgreSQL: Connected`);
+      console.log(`⚡ Redis: ${redisClient ? 'Connected' : 'Unavailable'}`);
+      console.log(`🌐 CORS: Enabled for nxtdotx.co.za`);
+      console.log(`\n📊 Endpoints:`);
+      console.log(`   Health: http://localhost:${PORT}/health`);
+      console.log(`   Metrics: http://localhost:${PORT}/metrics`);
+      console.log(`   Suppliers: http://localhost:${PORT}/api/suppliers`);
+      console.log(`   Integrations: http://localhost:${PORT}/api/integrations/status`);
+      console.log(`\n🛡️ Production Ready with NILEDB PostgreSQL!`);
+      
+      // Log startup metrics
+      insertDashboardMetric('server_startup', initTime, 'gauge', {
+        port: PORT,
+        environment: NODE_ENV,
+        database: 'NILEDB_PostgreSQL'
+      }).catch(err => console.warn('Failed to log startup metric:', err.message));
     });
     
-    // Setup graceful shutdown
+    // Setup signal handlers
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-    process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // nodemon
+    process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2'));
     
     // Handle uncaught errors
     process.on('uncaughtException', (error) => {
@@ -620,18 +463,11 @@ async function startFighterJetServer() {
       gracefulShutdown('UNHANDLED_REJECTION');
     });
     
-    // Memory management for long-running performance
-    if (global.gc) {
-      setInterval(() => {
-        global.gc();
-      }, 30000); // Garbage collect every 30 seconds
-    }
-    
   } catch (error) {
-    console.error('❌ Failed to start Fighter Jet Server:', error);
+    console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 }
 
-// Launch the Fighter Jet!
-startFighterJetServer();
+// Start the server
+startServer();
