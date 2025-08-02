@@ -3,7 +3,7 @@
  * Complete integration hub for all external systems with NILEDB connectivity
  */
 
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import { nileDb, insertDashboardEvent, insertDashboardMetric, storeRealTimeData } from '../config/niledb.config.js';
 import { createAlert, sendNotification } from './notifications.js';
 import cacheService from './cache.service.js';
