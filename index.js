@@ -11,6 +11,7 @@ import { createClient } from 'redis';
 import { cpus } from 'os';
 import { performance } from 'perf_hooks';
 import dotenv from 'dotenv';
+import fetch from 'node-fetch';
 
 // Load environment variables
 dotenv.config();
@@ -34,6 +35,9 @@ import paymentGatewayService from './src/services/payment-gateway.service.js';
 const PORT = process.env.PORT || 4000;
 const NODE_ENV = process.env.NODE_ENV || 'production';
 const CPU_COUNT = cpus().length;
+
+// AI Analytics Configuration
+const AI_ANALYTICS_BASE = process.env.AI_ANALYTICS_URL || 'http://localhost:4000';
 
 // Performance tracking
 let requestCount = 0;
@@ -102,6 +106,47 @@ async function checkNileDBHealth() {
 }
 
 /**
+ * AI Analytics Proxy Function
+ * Forwards AI-related requests to the dedicated AI microservice
+ */
+async function proxyAI(req, method, upPath) {
+  const url = `${AI_ANALYTICS_BASE}${upPath}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`;
+  const opts = { 
+    method, 
+    headers: { 'Content-Type': 'application/json' }
+  };
+  
+  if (method !== 'GET') {
+    const body = await new Promise(resolve => {
+      const chunks = [];
+      req.on('data', chunk => chunks.push(chunk));
+      req.on('end', () => resolve(Buffer.concat(chunks).toString()));
+    });
+    opts.body = body;
+  }
+  
+  try {
+    const resp = await fetch(url, opts);
+    const data = await resp.text();
+    return { 
+      status: resp.status, 
+      headers: { 'Content-Type': resp.headers.get('content-type') || 'application/json' }, 
+      body: data 
+    };
+  } catch (error) {
+    return {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        error: 'AI Analytics Service Unavailable',
+        message: error.message,
+        timestamp: new Date().toISOString()
+      })
+    };
+  }
+}
+
+/**
  * Routes Map
  */
 const routes = new Map();
@@ -166,6 +211,12 @@ routes.set('GET /metrics', () => {
     })
   };
 });
+
+// AI Analytics Proxy Routes
+routes.set('POST /api/analytics/ai/query', req => proxyAI(req, 'POST', '/api/analytics/query'));
+routes.set('GET /api/analytics/ai/insights', req => proxyAI(req, 'GET', '/api/analytics/insights'));
+routes.set('POST /api/analytics/ai/recommendations', req => proxyAI(req, 'POST', '/api/recommendations'));
+routes.set('GET /api/analytics/ai/status', req => proxyAI(req, 'GET', '/api/status'));
 
 // Dashboard health endpoint
 routes.set('GET /api/dashboard/health', async () => {
