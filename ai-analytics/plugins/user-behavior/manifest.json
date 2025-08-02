@@ -4,7 +4,7 @@
   "description": "Analyzes user behavior patterns, session flows, and interaction data",
   "author": "NXT Analytics Team",
   "type": "analytics",
-  "main": "index.js",
+  "main": "index.cjs",
   "capabilities": [
     "session-analysis",
     "user-flow-tracking",
