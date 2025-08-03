@@ -1,0 +1,44 @@
+name = "nxt-api-gateway"
+type = "javascript"
+compatibility_date = "2025-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
+BACKEND_URL = "https://api.nxtdotx.co.za"
+
+[env.production]
+vars = { ENVIRONMENT = "production", BACKEND_URL = "https://api.nxtdotx.co.za" }
+
+[env.staging]
+vars = { ENVIRONMENT = "staging", BACKEND_URL = "https://staging-api.nxtdotx.co.za" }
+
+[env.development]
+vars = { ENVIRONMENT = "development", BACKEND_URL = "http://localhost:4000" }
+
+# KV Namespaces for analytics, caching, and rate limiting
+[[kv_namespaces]]
+binding = "ANALYTICS_KV"
+id = "your_analytics_kv_id"
+preview_id = "your_analytics_kv_preview_id"
+
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "your_cache_kv_id"
+preview_id = "your_cache_kv_preview_id"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "your_rate_limit_kv_id"
+preview_id = "your_rate_limit_kv_preview_id"
+
+# Environment variables for secrets
+[vars]
+# Add these via Cloudflare dashboard:
+# - JWT_SECRET
+# - API_KEYS
+# - WEBHOOK_SECRET
+
+# Triggers for custom domains
+[triggers]
+crons = ["0 */6 * * *"] # Run analytics cleanup every 6 hours

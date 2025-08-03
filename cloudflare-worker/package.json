@@ -1,0 +1,21 @@
+{
+  "name": "nxt-api-gateway",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker API Gateway for NXT New Day with analytics, AI, and edge features",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:production": "wrangler deploy --env production",
+    "tail": "wrangler tail",
+    "test": "vitest"
+  },
+  "keywords": ["cloudflare", "worker", "api-gateway", "analytics", "ai"],
+  "author": "NXT New Day Team",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0",
+    "vitest": "^1.0.0"
+  }
+}

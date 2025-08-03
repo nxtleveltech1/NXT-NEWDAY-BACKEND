@@ -1,28 +1,18 @@
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 node_modules
+npm-debug.log
+.git
+.gitignore
+README.md
 .env
-logs
-backups
-=======
-node_modules
->>>>>>> Stashed changes
-=======
-node_modules
->>>>>>> Stashed changes
-=======
-node_modules
->>>>>>> Stashed changes
-=======
-node_modules
->>>>>>> Stashed changes
-=======
-node_modules
->>>>>>> Stashed changes
-=======
-node_modules
->>>>>>> Stashed changes
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+coverage
+.nyc_output
+dist
+build
+*.log
+.DS_Store
+.vscode
+.idea

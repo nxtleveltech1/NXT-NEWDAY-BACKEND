@@ -1,29 +1,24 @@
-# Production Dockerfile for NXT Backend
-
 # Use official Node.js LTS image
-FROM node:20-alpine AS base
-
-# Install security updates and essential tools
-RUN apk update && apk upgrade && \
-    apk add --no-cache curl ca-certificates && \
-    rm -rf /var/cache/apk/*
+FROM node:20-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Install dependencies (production only)
+# Copy package files
 COPY package*.json ./
-RUN npm ci --only=production && npm cache clean --force
 
-# Copy source code
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy application code
 COPY . .
 
-# Expose the backend port
+# Expose port
 EXPOSE 4000
 
-# Healthcheck (optional, for Docker Compose)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD curl -f http://localhost:4000/health || exit 1
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:4000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
-# Start the backend
+# Start command
 CMD ["npm", "start"]
