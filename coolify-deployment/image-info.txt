@@ -1,0 +1,3 @@
+﻿Image: nxt-backend:latest
+Size: 434MB
+Built: 08/03/2025 10:05:41

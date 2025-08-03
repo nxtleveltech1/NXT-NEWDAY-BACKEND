@@ -1,0 +1,6 @@
+{
+  "name": "nxt-backend",
+  "description": "NXT Backend API Server",
+  "dockerCompose": "version: '3.8'\nservices:\n  nxt-backend:\n    build: .\n    container_name: nxt-backend\n    ports:\n      - \"4000:4000\"\n    environment:\n      - NODE_ENV=production\n      - PORT=4000\n      - DATABASE_URL=postgresql://postgres:password@localhost:5432/nxt_backend\n      - JWT_SECRET=change-this-secret-key\n      - ENCRYPTION_KEY=change-this-encryption-key\n      - REDIS_URL=redis://localhost:6379\n      - API_BASE_URL=http://152.53.114.19:4000\n      - FRONTEND_URL=http://152.53.114.19:3000\n      - LOG_LEVEL=info\n    restart: unless-stopped\n    healthcheck:\n      test: [\"CMD\", \"wget\", \"--no-verbose\", \"--tries=1\", \"--spider\", \"http://localhost:4000/health\"]\n      interval: 30s\n      timeout: 10s\n      retries: 3\n      start_period: 40s",
+  "environment": "NODE_ENV=production\nPORT=4000\nDATABASE_URL=postgresql://postgres:password@localhost:5432/nxt_backend\nJWT_SECRET=change-this-secret-key\nENCRYPTION_KEY=change-this-encryption-key\nREDIS_URL=redis://localhost:6379\nAPI_BASE_URL=http://152.53.114.19:4000\nFRONTEND_URL=http://152.53.114.19:3000\nLOG_LEVEL=info"
+}

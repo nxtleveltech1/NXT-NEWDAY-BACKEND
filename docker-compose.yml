@@ -1,17 +1,24 @@
 version: '3.8'
 
 services:
-  backend:
+  nxt-backend:
     build: .
+    container_name: nxt-backend
     ports:
       - "4000:4000"
     environment:
       - NODE_ENV=production
-    env_file:
-      - .env
+      - PORT=4000
+      - DATABASE_URL=postgresql://postgres:password@localhost:5432/nxt_backend
+      - JWT_SECRET=your-jwt-secret-change-this
+      - ENCRYPTION_KEY=your-encryption-key-change-this
+      - REDIS_URL=redis://localhost:6379
+      - API_BASE_URL=http://152.53.114.19:4000
+      - FRONTEND_URL=http://152.53.114.19:3000
+      - LOG_LEVEL=info
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
