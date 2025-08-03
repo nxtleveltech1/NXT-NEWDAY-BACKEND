@@ -581,7 +581,6 @@ export async function suggestQuantityOptimization(supplierId, items, options = {
 }
 
 export {
-  getSupplierPriceEnhanced,
   activatePriceListEnhanced,
   getBulkSupplierPricesEnhanced,
   suggestQuantityOptimization
