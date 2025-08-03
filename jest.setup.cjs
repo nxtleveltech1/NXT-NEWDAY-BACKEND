@@ -1,7 +1,7 @@
 // Load test environment variables
-import { config } from 'dotenv';
-import { existsSync } from 'fs';
-import { join } from 'path';
+const { config } = require('dotenv');
+const { existsSync } = require('fs');
+const { join } = require('path');
 
 // Load .env.test if it exists, otherwise fall back to .env
 const testEnvPath = join(process.cwd(), '.env.test');

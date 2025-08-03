@@ -1,10 +1,7 @@
-export default {
+module.exports = {
   testEnvironment: 'node',
   transform: {},
-  moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1',
-  },
-  // Limit executed tests to critical NILEDB integration suite
+  moduleNameMapper: {},
   testMatch: ['<rootDir>/src/services/__tests__/niledb-integration.service.test.js'],
   collectCoverageFrom: [
     'src/**/*.js',
@@ -14,5 +11,5 @@ export default {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   testTimeout: 30000,
-  setupFiles: ['<rootDir>/jest.setup.js'],
+  setupFiles: ['<rootDir>/jest.setup.cjs'],
 };
