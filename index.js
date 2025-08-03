@@ -10,11 +10,7 @@ import { createServer } from 'node:http';
 import { createClient } from 'redis';
 import { cpus } from 'node:os';
 import { performance } from 'node:perf_hooks';
-import dotenv from 'dotenv';
 import fetch from 'node-fetch';
-
-// Load environment variables
-dotenv.config();
 
 // Import NILEDB PostgreSQL configuration
 import { 

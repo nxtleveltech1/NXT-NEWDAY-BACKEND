@@ -76,6 +76,7 @@ docker-compose down && docker-compose up -d --build
 1. **Port 4000 already in use**: Change port in docker-compose.yml
 2. **Database connection failed**: Check DATABASE_URL
 3. **Permission denied**: Use `sudo` for Docker commands
+4. **`spawn docker ENOENT`**: Ensure Docker is installed and in the system's PATH on the build server.
 
 ### Logs
 ```bash

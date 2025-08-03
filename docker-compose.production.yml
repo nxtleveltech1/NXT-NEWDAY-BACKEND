@@ -1,16 +1,23 @@
 version: '3.8'
-
 services:
-  api:
-    build: .
-    container_name: nxt-api
-    env_file:
-      - .backend.env        # your secrets
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    image: nxt-newday-backend:latest
     ports:
       - "4000:4000"
+    environment:
+      - DATABASE_URL=${{project.DATABASE_URL}}
+      - JWT_SECRET=${{project.JWT_SECRET}}
+      - ENCRYPTION_KEY=${{project.ENCRYPTION_KEY}}
+      - REDIS_URL=${{project.REDIS_URL}}
+      - API_BASE_URL=${{project.API_BASE_URL}}
+      - FRONTEND_URL=${{project.FRONTEND_URL}}
+      - LOG_LEVEL=${{project.LOG_LEVEL}}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:4000/health || exit 1"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
       interval: 30s
       timeout: 10s
       retries: 3

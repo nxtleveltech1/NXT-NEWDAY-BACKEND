@@ -1,24 +1,32 @@
-# Use official Node.js LTS image
-FROM node:20-alpine
+# Stage 1: Build the application
+FROM node:20-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package.json and package-lock.json
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm ci
 
-# Copy application code
+# Copy the rest of the application code
 COPY . .
 
-# Expose port
+# Stage 2: Production image
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy dependencies from the builder stage
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app .
+
+# Expose the port the app runs on
 EXPOSE 4000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:4000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD [ "node", "-e", "require('http').get('http://localhost:4000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))" ]
 
-# Start command
-CMD ["npm", "start"]
+# Run the application
+CMD [ "npm", "start" ]
