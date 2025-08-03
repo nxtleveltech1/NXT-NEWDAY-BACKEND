@@ -1,13 +1,6 @@
 name = "nxt-newday-backend"
-main = "index.js"
 compatibility_date = "2024-01-01"
+pages_build_output_dir = "."
 
 [build]
 command = "echo 'Build completed successfully - no build step required for Node.js project'"
-output_dir = "."
-
-[env.production]
-name = "nxt-newday-backend-prod"
-
-[env.staging]
-name = "nxt-newday-backend-staging"
