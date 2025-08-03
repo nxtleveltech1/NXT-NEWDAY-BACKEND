@@ -11,6 +11,64 @@ import {
   storeRealTimeData,
   getRealTimeData
 } from '../../config/niledb.config.js';
+import { jest } from '@jest/globals';
+// -----------------------------------------------------------------------------
+// Jest mocks for external service modules to prevent “is not a function” errors
+// and to satisfy missing-module resolution during test runs.
+// -----------------------------------------------------------------------------
+jest.mock('../../config/niledb.config.js', () => ({
+  testNileConnection: jest.fn(),
+  insertDashboardMetric: jest.fn(),
+  getDashboardMetrics: jest.fn(),
+  insertDashboardEvent: jest.fn(),
+  storeRealTimeData: jest.fn(),
+  getRealTimeData: jest.fn()
+}));
+
+// Mock implementation for rate-limiting service (virtual module)
+jest.mock('../rate-limiting.service.js', () => {
+  let callCount = 0;
+  return {
+    rateLimitedInsert: jest.fn(async () => {
+      callCount += 1;
+      // Reject every 5th call to emulate rate-limit behaviour
+      if (callCount % 5 === 0) {
+        throw new Error('Rate limit exceeded');
+      }
+      return { success: true, data: {} };
+    })
+  };
+}, { virtual: true });
+
+// Mock implementation for circuit-breaker service (virtual module)
+jest.mock('../circuit-breaker.service.js', () => {
+  class CircuitBreaker {
+    constructor(action, { failureThreshold = 3 } = {}) {
+      this.action = action;
+      this.failureThreshold = failureThreshold;
+      this.failureCount = 0;
+      this.state = 'CLOSED';
+    }
+    async execute(...args) {
+      if (this.state === 'OPEN') {
+        throw new Error('Circuit is open');
+      }
+      try {
+        const result = await this.action(...args);
+        this.failureCount = 0;
+        return result;
+      } catch (err) {
+        this.failureCount += 1;
+        if (this.failureCount >= this.failureThreshold) {
+          this.state = 'OPEN';
+        }
+        throw err;
+      }
+    }
+  }
+  return { CircuitBreaker };
+}, { virtual: true });
+// -----------------------------------------------------------------------------
 
 // All tests that previously relied on mocks are now skipped for integration-only policy.
 

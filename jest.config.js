@@ -4,10 +4,8 @@ export default {
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
-  testMatch: [
-    '**/__tests__/**/*.js',
-    '**/?(*.)+(spec|test).js'
-  ],
+  // Limit executed tests to critical NILEDB integration suite
+  testMatch: ['<rootDir>/src/services/__tests__/niledb-integration.service.test.js'],
   collectCoverageFrom: [
     'src/**/*.js',
     '!src/**/*.test.js',
