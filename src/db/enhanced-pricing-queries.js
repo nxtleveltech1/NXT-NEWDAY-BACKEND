@@ -580,8 +580,4 @@ export async function suggestQuantityOptimization(supplierId, items, options = {
   return suggestions
 }
 
-export {
-  activatePriceListEnhanced,
-  getBulkSupplierPricesEnhanced,
-  suggestQuantityOptimization
-}
+// Functions are already exported individually above
