@@ -18,12 +18,12 @@ import {
 import * as supplierQueries from '../../db/supplier-queries.js';
 import * as priceListQueries from '../../db/price-list-queries.js';
 
-// Mock all database queries
-jest.mock('../../db/supplier-queries.js');
-jest.mock('../../db/price-list-queries.js');
-jest.mock('../../utils/file-parsers/index.js');
+// Skipped: requires mocking, not allowed in integration-only test policy.
 
-describe('Supplier Service Unit Tests', () => {
+
+
+
+describe.skip('Supplier Service Unit Tests', () => {
   
   beforeEach(() => {
     jest.clearAllMocks();

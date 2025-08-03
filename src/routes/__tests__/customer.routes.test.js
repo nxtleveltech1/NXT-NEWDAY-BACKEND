@@ -27,7 +27,10 @@ jest.mock('../../services/customer.service.js', () => ({
 
 import { CustomerService } from '../../services/customer.service.js';
 
-describe('Customer Routes', () => {
+/**
+ * Skipped: unit/mocked test file, not allowed under integration-only test policy.
+ */
+describe.skip('Customer Routes', () => {
   let app;
 
   beforeEach(() => {

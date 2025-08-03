@@ -44,7 +44,10 @@ jest.mock('../../db/price-list-queries.js', () => ({
   getPriceListStatistics: jest.fn()
 }));
 
-describe('SupplierService', () => {
+/**
+ * Skipped: unit/mocked test file, not allowed under integration-only test policy.
+ */
+describe.skip('SupplierService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });

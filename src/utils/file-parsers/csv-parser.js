@@ -38,7 +38,14 @@ export async function parseCSV(fileBuffer, options = {}) {
     encoding = 'utf-8'
   } = options;
 
+  // Add a timeout to prevent indefinite hangs in test environments
   return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject({
+        success: false,
+        error: 'CSV parsing timed out (diagnostic timeout)',
+      });
+    }, 5000);
     const results = [];
     const errors = [];
     let headers = null;
@@ -46,7 +53,8 @@ export async function parseCSV(fileBuffer, options = {}) {
     let rowNumber = 0;
 
     // Convert buffer to readable stream
-    const stream = Readable.from(fileBuffer.toString(encoding));
+    // Patch: Use array to ensure stream ends and parser emits 'end'
+    const stream = Readable.from([fileBuffer.toString(encoding)]);
 
     // Configure CSV parser
     const parser = parse({
@@ -164,6 +172,7 @@ export async function parseCSV(fileBuffer, options = {}) {
 
     // Handle parsing errors
     parser.on('error', (error) => {
+      clearTimeout(timeout);
       reject({
         success: false,
         error: 'CSV parsing failed: ' + error.message,
@@ -173,6 +182,7 @@ export async function parseCSV(fileBuffer, options = {}) {
 
     // Handle completion
     parser.on('end', () => {
+      clearTimeout(timeout);
       if (errors.length > 0 && results.length === 0) {
         reject({
           success: false,

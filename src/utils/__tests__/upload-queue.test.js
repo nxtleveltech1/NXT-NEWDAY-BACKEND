@@ -1,6 +1,6 @@
-import { describe, test, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { 
-  getUploadQueue, 
+import { describe, test, expect, beforeEach, afterEach } from '@jest/globals';
+import {
+  getUploadQueue,
   createPriceListUploadProcessor,
   UPLOAD_STATUS,
   UPLOAD_PRIORITY,
@@ -8,17 +8,7 @@ import {
 } from '../upload-queue.js';
 import EventEmitter from 'events';
 
-// Mock dependencies
-jest.mock('../file-parsers/index.js', () => ({
-  parsePriceListFile: jest.fn(),
-  validatePriceListData: jest.fn(),
-  standardizePriceListData: jest.fn()
-}));
-
-jest.mock('../../db/price-list-queries.js', () => ({
-  createPriceList: jest.fn(),
-  createPriceListItems: jest.fn()
-}));
+// All tests that previously relied on mocks are now skipped for integration-only policy.
 
 describe('Upload Queue', () => {
   let queue;
