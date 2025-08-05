@@ -27,6 +27,7 @@ import apiIntegrationService from './src/services/api-integration.service.js';
 // import woocommerceSyncService from './src/services/woocommerce-bidirectional-sync.service.js';
 import paymentGatewayService from './src/services/payment-gateway.service.js';
 import { getCustomers } from './src/controllers/customer.controller.js';
+import { getCustomers } from './src/controllers/customer.controller.js';
 import { getDashboardOverview } from './src/controllers/dashboard.controller.js';
 
 // Production configuration
@@ -307,6 +308,58 @@ routes.set('GET /api/suppliers', async () => {
       })
     };
   }
+});
+
+// Customers endpoint
+routes.set('GET /api/customers', async (req, res) => {
+  // This is a mock response object for the controller
+  const mockRes = {
+    statusCode: 200,
+    headers: { 'Content-Type': 'application/json' },
+    body: null,
+    status: function(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json: function(data) {
+      this.body = JSON.stringify(data);
+      return this;
+    }
+  };
+
+  await getCustomers(req, mockRes);
+
+  return {
+    status: mockRes.statusCode,
+    headers: mockRes.headers,
+    body: mockRes.body
+  };
+});
+
+// Dashboard overview endpoint
+routes.set('GET /api/dashboard/overview', async (req, res) => {
+  // This is a mock response object for the controller
+  const mockRes = {
+    statusCode: 200,
+    headers: { 'Content-Type': 'application/json' },
+    body: null,
+    status: function(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json: function(data) {
+      this.body = JSON.stringify(data);
+      return this;
+    }
+  };
+
+  await getDashboardOverview(req, mockRes);
+
+  return {
+    status: mockRes.statusCode,
+    headers: mockRes.headers,
+    body: mockRes.body
+  };
 });
 
 // Customers endpoint
