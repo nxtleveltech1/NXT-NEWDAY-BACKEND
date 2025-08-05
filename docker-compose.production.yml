@@ -3,10 +3,10 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile.production
+      dockerfile: Dockerfile
     image: nxt-newday-backend:latest
     ports:
-      - "4000:4000"
+      - "4000"
     environment:
       - DATABASE_URL=${{project.DATABASE_URL}}
       - JWT_SECRET=${{project.JWT_SECRET}}
@@ -15,6 +15,8 @@ services:
       - API_BASE_URL=${{project.API_BASE_URL}}
       - FRONTEND_URL=${{project.FRONTEND_URL}}
       - LOG_LEVEL=${{project.LOG_LEVEL}}
+    networks:
+      - dokploy-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
@@ -22,3 +24,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+networks:
+  dokploy-network:
+    external: true
